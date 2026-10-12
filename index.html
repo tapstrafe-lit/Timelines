@@ -1,0 +1,1700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Chronicle — book &amp; series timelines</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235a2ea6'/%3E%3Cpath d='M7 11h12M13 16h12M9 21h9' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style id="tl-styles">
+:root{color-scheme:light dark}
+:root[data-theme=light]{color-scheme:light}
+:root[data-theme=dark]{color-scheme:dark}
+:root,.tl-scope{
+  --accent:#5a2ea6;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --bg:color-mix(in srgb,var(--accent) 4%,light-dark(#fbfbfd,#0f0f14));
+  --panel:color-mix(in srgb,var(--accent) 5%,light-dark(#ffffff,#17171e));
+  --card:light-dark(#ffffff,#1c1c25);
+  --fg:light-dark(#191924,#ececf4);
+  --muted:light-dark(#6a6a7b,#9b9bb0);
+  --line:color-mix(in srgb,var(--accent) 14%,light-dark(#e4e4ec,#2a2a37));
+  --hover:color-mix(in srgb,var(--accent) 10%,transparent);
+  --shadow:0 1px 2px light-dark(rgba(24,24,48,.10),rgba(0,0,0,.5)),0 2px 8px light-dark(rgba(24,24,48,.05),rgba(0,0,0,.3));
+  --shadow-lg:0 10px 34px light-dark(rgba(24,24,48,.18),rgba(0,0,0,.65)),0 2px 6px light-dark(rgba(24,24,48,.08),rgba(0,0,0,.4));
+  font-family:var(--font);
+}
+/* ---- Timeline canvas ---- */
+.tl-host{position:relative;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font)}
+.tl-scroller{position:absolute;inset:0;overflow:auto;touch-action:none;overscroll-behavior:contain;cursor:grab;scrollbar-width:thin}
+.tl-scroller.panning{cursor:grabbing;user-select:none}
+.tl{position:relative;min-height:100%;color:var(--fg);background:var(--bg);font-family:var(--font);font-size:13px;line-height:1.3;-webkit-text-size-adjust:100%}
+.tl *{box-sizing:border-box}
+.tl-head{position:sticky;left:0;width:max-content;max-width:min(100vw,760px);padding:20px 24px 14px;cursor:default}
+.tl-head h1{margin:0;font-size:22px;letter-spacing:-.01em;font-weight:700;line-height:1.2}
+.tl-head .tl-sub{margin-top:3px;color:var(--muted);font-size:13.5px}
+.tl-head.is-empty{min-height:12px;padding-bottom:6px}
+.tl-axis{position:sticky;top:0;z-index:6;height:40px;background:var(--bg);border-bottom:1px solid var(--line)}
+.tl-axis-corner{position:sticky;left:0;z-index:3;width:var(--lw);height:100%;display:flex;align-items:flex-end;padding:0 12px 9px;background:var(--bg);border-right:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden}
+.tl-axis-line{position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--muted);opacity:.5}
+.tl-tick{position:absolute;bottom:0;width:1px;height:7px;background:var(--muted);opacity:.7}
+.tl-tick-l{position:absolute;bottom:11px;transform:translateX(-50%);font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.tl-body{position:relative}
+.tl-bands{position:absolute;inset:0;pointer-events:none;z-index:0}
+.tl-band{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--c) 9%,transparent);border-left:1px solid color-mix(in srgb,var(--c) 38%,transparent);border-right:1px solid color-mix(in srgb,var(--c) 38%,transparent)}
+.tl-band.is-tentative{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 7%,transparent) 0 8px,transparent 8px 16px);border-left-style:dashed;border-right-style:dashed}
+.tl-gridline{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.8;z-index:1;pointer-events:none}
+.tl-era{position:absolute;z-index:3;height:22px;border-radius:6px;padding:0 9px;display:flex;align-items:center;background:color-mix(in srgb,var(--c) 20%,var(--card));border:1px solid color-mix(in srgb,var(--c) 55%,transparent);color:color-mix(in srgb,var(--c) 72%,var(--fg));font-size:11.5px;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;cursor:pointer;transition:box-shadow .15s,opacity .15s}
+.tl-era span{overflow:hidden;text-overflow:ellipsis}
+.tl-era.is-tentative{border-style:dashed;opacity:.7}
+.tl-lane{position:relative;z-index:2;border-bottom:1px solid var(--line);transition:background .15s}
+.tl-lane.drop-target{background:var(--hover)}
+.tl-lane-head{position:sticky;left:0;z-index:4;width:var(--lw);height:100%;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--bg);border-right:1px solid var(--line);font-weight:650;font-size:13px;cursor:default;transition:background .15s}
+.tl-lane-head i{flex:none;width:9px;height:9px;border-radius:3px;background:var(--c)}
+.tl-lane-head span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.tl-rowline{position:absolute;left:0;right:0;height:0;border-top:1.5px solid color-mix(in srgb,var(--c) 28%,var(--line));pointer-events:none}
+.tl-empty{position:absolute;left:calc(var(--lw) + 24px);top:50%;transform:translateY(-50%);color:var(--muted);font-size:12.5px;pointer-events:none;white-space:nowrap}
+.tl-foot{height:76px}
+/* items */
+.tl-item{position:absolute;cursor:pointer;transition:box-shadow .15s,opacity .15s,filter .15s}
+.tl-span{border-radius:10px;background:color-mix(in srgb,var(--c) 16%,var(--card));border:1.5px solid color-mix(in srgb,var(--c) 58%,transparent);box-shadow:var(--shadow);padding:5px 6px 5px 12px;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+.tl-span::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.tl-span.tl-sm{border-radius:8px;padding-top:3px;padding-bottom:3px}
+.tl-t{display:block;font-weight:650;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-s{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.tl-sm .tl-t{font-size:12px}
+.tl-wrap .tl-t{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12.5px;line-height:1.2;overflow-wrap:anywhere}
+.tl-event .tl-dot{position:absolute;left:0;top:50%;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px var(--bg)}
+.tl-event .tl-label{position:absolute;left:20px;right:0;top:50%;height:26px;margin-top:-13px;padding:0 10px;display:flex;align-items:center;border-radius:8px;background:var(--card);border:1.5px solid color-mix(in srgb,var(--c) 50%,transparent);box-shadow:var(--shadow);overflow:hidden}
+.tl-event .tl-label .tl-t{font-size:12.5px}
+.tl-item:hover{box-shadow:var(--shadow-lg)}
+.tl-event:hover{box-shadow:none}
+.tl-event:hover .tl-label{box-shadow:var(--shadow-lg)}
+.tl-item.is-tentative{opacity:.62}
+.tl-span.is-tentative,.tl-event.is-tentative .tl-label{border-style:dashed}
+.tl-event.is-tentative .tl-dot{background:var(--bg);border:2px dashed var(--c);box-shadow:0 0 0 3px var(--bg)}
+.is-hidden .tl-t,.is-hidden .tl-s{filter:blur(5px);user-select:none;-webkit-user-select:none}
+.tl-chip{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:2px 8px;border-radius:99px;background:var(--fg);color:var(--bg);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;pointer-events:none;white-space:nowrap}
+.tl-event .tl-chip{left:calc(50% + 10px)}
+.is-hidden .tl-chip{display:block}
+.tl-flag{position:absolute;top:-7px;right:6px;padding:1px 6px;border-radius:99px;background:var(--fg);color:var(--bg);font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;pointer-events:none;z-index:3}
+.is-selected{outline:2px solid var(--accent);outline-offset:3px}
+.tl-event.is-selected{outline:none}
+.tl-event.is-selected .tl-label{outline:2px solid var(--accent);outline-offset:2px}
+.tl-event.is-selected .tl-dot{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--accent)}
+.tl-lane-head.is-selected,.tl-axis.is-selected,.tl-head.is-selected{outline-offset:-2px}
+.tl-era.is-selected{outline-offset:2px}
+/* edit affordances */
+.tl-editing .tl-item,.tl-editing .tl-era{cursor:grab;touch-action:none}
+.tl-editing .tl-lane-head{cursor:grab;touch-action:none}
+.tl-editing .tl-head,.tl-editing .tl-axis{cursor:pointer}
+.tl-h{position:absolute;top:0;bottom:0;width:12px;cursor:ew-resize;z-index:2;touch-action:none}
+.tl-h.l{left:0}.tl-h.r{right:0}
+.tl-h::after{content:"";position:absolute;top:22%;bottom:22%;left:4px;width:3px;border-radius:2px;background:var(--fg);opacity:0;transition:opacity .15s}
+.tl-editing :is(.tl-span,.tl-era):hover .tl-h::after,.tl-editing .is-selected .tl-h::after{opacity:.35}
+.tl-dragging{z-index:20!important;box-shadow:var(--shadow-lg);cursor:grabbing!important;transition:none!important}
+.tl-readout{position:fixed;z-index:1200;padding:3px 9px;border-radius:7px;background:var(--fg);color:var(--bg);font:600 11.5px var(--font);pointer-events:none;font-variant-numeric:tabular-nums}
+/* zoom controls */
+.tl-zoomctl{position:absolute;right:14px;bottom:14px;z-index:20;display:flex;gap:2px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow-lg)}
+.tl-zoomctl button{all:unset;box-sizing:border-box;min-width:32px;height:32px;padding:0 8px;display:grid;place-items:center;border-radius:8px;font:600 15px var(--font);color:var(--fg);cursor:pointer;transition:background .15s}
+.tl-zoomctl button:hover{background:var(--hover)}
+.tl-zoomctl button:focus-visible{outline:2px solid var(--accent)}
+.tl-zoomctl .fit{font-size:12px;letter-spacing:.02em}
+/* popover */
+.tl-pop{position:fixed;z-index:1000;width:min(330px,calc(100vw - 24px));max-height:70vh;overflow:auto;padding:14px 16px 15px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-top:3px solid var(--c,var(--accent));border-radius:12px;box-shadow:var(--shadow-lg);font:13px/1.5 var(--font);animation:tlpop .15s ease-out}
+@keyframes tlpop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.tl-pop h3{margin:0;font-size:15px;line-height:1.3}
+.tl-pop .p-sub{color:var(--muted);margin-top:1px}
+.tl-pop .p-meta{margin-top:8px;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.tl-pop p{margin:9px 0 0;white-space:pre-wrap}
+.tl-pop .p-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.tl-pop .p-tags span,.tl-pop .p-badge{padding:1px 8px;border-radius:99px;background:var(--hover);font-size:11px;font-weight:600}
+.tl-pop .p-badge{margin-left:6px;vertical-align:2px}
+@media (max-width:560px){.tl-pop{left:12px!important;right:12px;bottom:12px;top:auto!important;width:auto}.tl-head{padding:14px 16px 10px}.tl-head h1{font-size:19px}}
+@media (prefers-reduced-motion:reduce){.tl *{transition:none!important}}
+</style>
+<style id="app-styles">
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--font);overflow:hidden;display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+.bar{flex:none;height:52px;display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line);position:relative;z-index:50}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.01em;color:var(--accent);margin-right:2px}
+.brand svg{width:20px;height:20px}
+.brand span{color:var(--fg)}
+.spacer{flex:1}
+.menuwrap{position:relative}
+.pbtn{display:flex;align-items:center;gap:8px;height:34px;max-width:min(46vw,360px);padding:0 12px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:pointer;font-weight:600;box-shadow:var(--shadow);transition:background .15s,border-color .15s}
+.pbtn:hover{background:var(--hover)}
+.pbtn:focus-visible,.seg button:focus-visible,.icon:focus-visible,.btn:focus-visible,.chip:focus-visible,.mrow:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pbtn #pickTitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbtn.is-example::after{content:"Example";flex:none;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 6px}
+.pbtn svg{flex:none;width:12px;height:12px;opacity:.6}
+.menu{display:none;position:absolute;top:calc(100% + 8px);left:0;min-width:260px;max-width:92vw;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);z-index:60;animation:pop .15s ease-out}
+.menu.open{display:block}
+.menu.right{left:auto;right:0}
+@keyframes pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.mhead{padding:8px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mempty{padding:6px 10px 8px;color:var(--muted);font-size:12.5px}
+.mrow,.mitem{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s;width:100%;text-align:left;border:0;background:transparent}
+.mrow:hover,.mitem:hover{background:var(--hover)}
+.mrow.on{background:var(--hover);font-weight:650}
+.mrow .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow.new{margin-top:4px;border-top:1px solid var(--line);border-radius:0 0 8px 8px;color:var(--accent);font-weight:650}
+.racts{display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.mrow:hover .racts,.mrow:focus-within .racts{opacity:1}
+@media (hover:none){.racts{opacity:1}}
+.rename{flex:1;min-width:0;font:inherit;padding:2px 6px;border:1px solid var(--accent);border-radius:6px;background:var(--bg);color:var(--fg)}
+.icon{all:unset;box-sizing:border-box;display:grid;place-items:center;min-width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:14px;color:var(--muted);transition:background .15s,color .15s}
+.icon:hover{background:var(--hover);color:var(--fg)}
+.icon:disabled{opacity:.35;cursor:default}
+.mitem{font-size:13.5px}
+.mitem small{margin-left:auto;color:var(--muted);font-size:11.5px}
+.msep{height:1px;background:var(--line);margin:5px 4px}
+.mnote{padding:6px 10px 4px;color:var(--muted);font-size:11.5px;line-height:1.4}
+.seg{display:inline-flex;padding:3px;gap:2px;background:var(--hover);border-radius:10px}
+.seg button{all:unset;box-sizing:border-box;height:28px;padding:0 14px;display:grid;place-items:center;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted);transition:background .15s,color .15s}
+.seg button.on{background:var(--card);color:var(--fg);box-shadow:var(--shadow)}
+.seg.small button{height:26px;padding:0 12px;font-size:12.5px}
+.tgl{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:13px;font-weight:550}
+.tgl input{position:absolute;opacity:0;width:0;height:0}
+.tgl .sw{position:relative;flex:none;width:32px;height:19px;border-radius:99px;background:color-mix(in srgb,var(--muted) 45%,transparent);transition:background .15s}
+.tgl .sw::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.tgl input:checked+.sw{background:var(--accent)}
+.tgl input:checked+.sw::after{transform:translateX(13px)}
+.tgl input:focus-visible+.sw{outline:2px solid var(--accent);outline-offset:2px}
+.sbtn{height:34px;padding:0 14px;border:1px solid var(--line);background:var(--accent);color:#fff;border-radius:10px;cursor:pointer;font-weight:650;display:flex;align-items:center;gap:6px;transition:filter .15s}
+.sbtn:hover{filter:brightness(1.1)}
+.sbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.work{flex:1;min-height:0;display:flex;position:relative}
+#stage{flex:1;min-width:0;position:relative}
+.palette{display:none;flex:none;width:72px;padding:10px 8px;flex-direction:column;gap:8px;background:var(--panel);border-right:1px solid var(--line);z-index:10}
+[data-mode=edit] .palette{display:flex}
+.chip{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px 7px;border:1px solid var(--line);background:var(--card);border-radius:10px;cursor:grab;font-size:11.5px;font-weight:600;user-select:none;touch-action:none;box-shadow:var(--shadow);transition:border-color .15s,background .15s}
+.chip:hover{border-color:var(--accent);background:var(--hover)}
+.chip svg{width:30px;height:22px;color:var(--accent)}
+.palette .grow{flex:1}
+.palette .ur{display:flex;gap:4px;justify-content:center}
+.inspector{display:none;flex:none;width:300px;overflow:auto;background:var(--panel);border-left:1px solid var(--line);z-index:10}
+.has-sel .inspector{display:block;animation:slidein .15s ease-out}
+@keyframes slidein{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+.insp-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+.insp-head strong{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.insp-body{padding:14px 16px 24px;display:flex;flex-direction:column;gap:13px}
+.field{display:flex;flex-direction:column;gap:5px}
+.lbl{font-size:11.5px;font-weight:650;color:var(--muted)}
+.field input[type=text],.field input[type=number],.field textarea,.field select{width:100%;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 9px;transition:border-color .15s,box-shadow .15s}
+.field textarea{resize:vertical;min-height:72px}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.swatches{display:flex;flex-wrap:wrap;gap:7px}
+.swatch{all:unset;box-sizing:border-box;width:22px;height:22px;border-radius:50%;background:var(--c);cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);transition:transform .15s}
+.swatch:hover{transform:scale(1.12)}
+.swatch.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--fg)}
+.swatch.none{background:linear-gradient(135deg,var(--card) 46%,var(--muted) 46% 54%,var(--card) 54%);box-shadow:inset 0 0 0 1px var(--muted)}
+.swatch.custom{padding:0;border:0;background:none;overflow:hidden;cursor:pointer;-webkit-appearance:none;appearance:none}
+.swatch.custom::-webkit-color-swatch-wrapper{padding:0}
+.swatch.custom::-webkit-color-swatch{border:1px dashed var(--muted);border-radius:50%}
+.acts{display:flex;gap:8px;margin-top:4px}
+.btn{all:unset;box-sizing:border-box;flex:1;text-align:center;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer;font-weight:600;font-size:13px;transition:background .15s}
+.btn:hover{background:var(--hover)}
+.btn.danger{color:#c0334a}
+.note{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+#hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:10px;max-width:calc(100% - 200px);padding:7px 8px 7px 16px;background:var(--fg);color:var(--bg);border-radius:14px;font-size:12.5px;box-shadow:var(--shadow-lg)}
+#hint[hidden]{display:none}
+#hint button{all:unset;cursor:pointer;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;opacity:.75;flex:none}
+#hint button:hover{opacity:1;background:color-mix(in srgb,var(--bg) 22%,transparent)}
+#toasts{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:center;width:min(560px,calc(100vw - 24px));pointer-events:none}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:12px;padding:10px 10px 10px 16px;background:var(--fg);color:var(--bg);border-radius:12px;box-shadow:var(--shadow-lg);font-size:13px;animation:pop .15s ease-out;max-width:100%}
+.toast.err{background:#a5233a;color:#fff}
+.toast .msg{flex:1;min-width:0;overflow-wrap:anywhere}
+.toast button{all:unset;cursor:pointer;font-weight:700;padding:3px 9px;border-radius:7px;flex:none}
+.toast .act{background:color-mix(in srgb,var(--bg) 20%,transparent)}
+.toast .x{opacity:.7;padding:3px 7px}
+.toast button:hover{background:color-mix(in srgb,var(--bg) 30%,transparent)}
+#veil{display:none;position:fixed;inset:0;z-index:3000;background:color-mix(in srgb,var(--accent) 22%,transparent);backdrop-filter:blur(3px);place-items:center;font-size:20px;font-weight:700;color:var(--fg);pointer-events:none}
+#veil.on{display:grid}
+#veil div{padding:26px 40px;border:2px dashed var(--accent);border-radius:18px;background:var(--panel)}
+.ghost{position:fixed;z-index:2500;pointer-events:none;transform:translate(-50%,-50%);padding:6px 12px;background:var(--card);border:2px solid var(--accent);border-radius:9px;box-shadow:var(--shadow-lg);font-weight:650;font-size:12.5px;opacity:.95}
+body.dragging,body.dragging *{cursor:grabbing!important;user-select:none}
+.tl-lane.drop-before{box-shadow:inset 0 3px 0 var(--accent)}
+.tl-lane.drop-after{box-shadow:inset 0 -3px 0 var(--accent)}
+.tl-export{position:absolute;left:0;top:0;z-index:-1;padding:32px 36px 22px;background:var(--bg);color:var(--fg);font-family:var(--font)}
+.tl-export .ex-head h1{margin:0 0 4px;font-size:30px;letter-spacing:-.015em}
+.tl-export .ex-sub{color:var(--muted);font-size:15px;margin-bottom:18px}
+.tl-export .ex-head{margin-bottom:6px}
+.tl-export .tl{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tl-export .ex-legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px;font-size:13px;color:var(--muted);align-items:center}
+.tl-export .lg{display:inline-flex;align-items:center;gap:7px}
+.tl-export .lg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.tl-export .lg i.dashed{background:transparent;border:1.5px dashed var(--muted)}
+.tl-export .lg.grow{margin-left:auto}
+@media (max-width:760px){
+  #hint{bottom:auto;top:8px;max-width:calc(100% - 20px)}
+  .bar{gap:8px;padding:0 10px}
+  .brand,.tgl .t,.pbtn.is-example::after{display:none}
+  .pbtn{max-width:none;flex:1;min-width:0}
+  .spacer{display:none}
+  .bar>.menuwrap:first-of-type,.bar .menuwrap:nth-child(2){flex:1;min-width:0}
+  .bar .menuwrap:nth-child(2) .pbtn{width:100%}
+  .sbtn{padding:0 12px}
+  .palette{position:absolute;left:0;right:0;bottom:0;width:auto;flex-direction:row;padding:8px 10px;border-right:0;border-top:1px solid var(--line);gap:8px;overflow-x:auto}
+  .chip{flex:1;flex-direction:row;justify-content:center;padding:6px 8px;min-width:76px}
+  .palette .grow{display:none}
+  [data-mode=edit] #stage .tl-zoomctl{bottom:82px}
+  .inspector{position:absolute;left:0;right:0;bottom:0;width:auto;max-height:52%;border-left:0;border-top:1px solid var(--line);box-shadow:var(--shadow-lg);z-index:40;border-radius:16px 16px 0 0}
+  .has-sel .palette{display:none}
+  .menu{position:fixed;left:10px;right:10px;top:58px;max-width:none}
+}
+</style>
+</head>
+<body data-mode="view">
+<div id="app" style="display:contents">
+<header class="bar">
+  <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M7 11h12M13 16h12M9 21h9" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg><span>Chronicle</span></div>
+  <div class="menuwrap">
+    <button class="pbtn" id="pickBtn" aria-haspopup="menu" aria-expanded="false" title="Switch timeline"><span id="pickTitle"></span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="menu" id="pickMenu" role="menu"></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg" id="modeSeg" role="group" aria-label="Mode"><button data-mode="view" class="on" aria-pressed="true">View</button><button data-mode="edit" aria-pressed="false">Edit</button></div>
+  <label class="tgl" title="Show spoilers"><input type="checkbox" id="spoilToggle"><span class="sw"></span><span class="t">Show spoilers</span></label>
+  <div class="menuwrap">
+    <button class="sbtn" id="shareBtn" aria-haspopup="menu" aria-expanded="false">Share <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="menu right" id="shareMenu" role="menu">
+      <button class="mitem" data-act="json" role="menuitem">Download JSON</button>
+      <button class="mitem" data-act="copy" role="menuitem">Copy JSON</button>
+      <button class="mitem" data-act="import" role="menuitem">Import file…</button>
+      <div class="msep"></div>
+      <button class="mitem" data-act="prompt" role="menuitem">Copy AI prompt</button>
+      <div class="msep"></div>
+      <button class="mitem" data-act="png" role="menuitem">Download PNG</button>
+      <button class="mitem" data-act="html" role="menuitem">Download HTML</button>
+      <div class="mnote">Tip: drop a .json or exported .html anywhere, or paste JSON (even from a chatbot) outside a text field.</div>
+    </div>
+  </div>
+</header>
+<div class="work">
+  <aside class="palette" id="palette" aria-label="Add to timeline">
+    <div class="chip" data-type="event" tabindex="0" title="Drag onto a lane, or click"><svg viewBox="0 0 30 22"><circle cx="8" cy="11" r="4.5" fill="currentColor"/><rect x="15" y="7" width="13" height="8" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>Event</div>
+    <div class="chip" data-type="span" tabindex="0" title="Drag onto a lane, or click"><svg viewBox="0 0 30 22"><rect x="2" y="5" width="26" height="12" rx="4" fill="currentColor" opacity=".25" stroke="currentColor" stroke-width="1.6"/><rect x="2" y="5" width="4" height="12" rx="2" fill="currentColor"/></svg>Span</div>
+    <div class="chip" data-type="era" tabindex="0" title="Drag onto the timeline, or click"><svg viewBox="0 0 30 22"><rect x="3" y="2" width="24" height="18" fill="currentColor" opacity=".16"/><rect x="3" y="2" width="24" height="6" rx="2" fill="currentColor" opacity=".55"/></svg>Era</div>
+    <div class="chip" data-type="lane" tabindex="0" title="Drag between lanes, or click"><svg viewBox="0 0 30 22"><path d="M3 5h24M3 11h24M3 17h24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>Lane</div>
+    <div class="grow"></div>
+    <div class="ur"><button class="icon" id="undoBtn" title="Undo (Ctrl/⌘Z)" aria-label="Undo">↶</button><button class="icon" id="redoBtn" title="Redo (Shift+Ctrl/⌘Z)" aria-label="Redo">↷</button></div>
+  </aside>
+  <main id="stage"><div id="hint" hidden><span>Drag chips onto lanes · double-click a lane to add an event · drag edges to resize · hold Alt to bypass snapping</span><button id="hintClose" aria-label="Dismiss hint">×</button></div></main>
+  <aside class="inspector" id="inspector" aria-label="Inspector"></aside>
+</div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<div id="veil"><div>Drop a Chronicle .json or .html to import</div></div>
+<input type="file" id="fileIn" accept=".json,.html,.htm,.txt,application/json,text/html,text/plain" hidden multiple>
+<script id="tl-renderer">
+(function (g) {
+'use strict';
+var LABEL_W = 132, PAD_L = 28, PAD_R = 96, AXIS_H = 40;
+var ROW_GAP = 8, LANE_PT = 12, LANE_PB = 12, SPAN_H = 50, SPAN_SM = 34, EVENT_H = 34, MIN_PPU = 14, MAX_PPU = 520;
+var FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+var PALETTE = ['#5a2ea6', '#2b5f9e', '#1f9a8a', '#2f9e5f', '#d9a21b', '#e0682c', '#d23f5a', '#c0479e', '#6b7280', '#2a2a3a'];
+
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+var _cx;
+function tw(s, weight, px) {
+  if (!_cx) _cx = document.createElement('canvas').getContext('2d');
+  _cx.font = weight + ' ' + px + 'px ' + FONT;
+  return _cx.measureText(s).width;
+}
+function fmt(n) { return String(Math.round(n * 100) / 100); }
+
+/* Greedy interval packing → row index per box. */
+function pack(boxes, gap) {
+  var order = boxes.map(function (_, i) { return i; }).sort(function (a, b) { return boxes[a].l - boxes[b].l || boxes[b].r - boxes[a].r; });
+  var ends = [], row = new Array(boxes.length);
+  order.forEach(function (i) {
+    var b = boxes[i], r = 0;
+    while (r < ends.length && ends[r] + gap > b.l) r++;
+    ends[r] = b.r; row[i] = r;
+  });
+  return { rows: ends.length, row: row };
+}
+
+function ticksFor(data, x, ppu) {
+  var ax = data.axis, list = [];
+  if (ax.ticks && ax.ticks.length) list = ax.ticks.map(function (t) { return { at: t.at, label: t.label }; });
+  else for (var v = Math.ceil(ax.start); v <= ax.end + 1e-9; v++) list.push({ at: v, label: String(v) });
+  var lastR = -1e9, out = [];
+  list.forEach(function (t) {
+    var cx = x(t.at), w = tw(t.label, 600, 11.5), l = cx - w / 2;
+    if (l - 8 >= lastR) { out.push(t); lastR = cx + w / 2; }
+  });
+  return out;
+}
+
+function render(data, o) {
+  o = o || {};
+  var ppu = o.ppu || 100, ax = data.axis, S = ax.start, E = ax.end;
+  var X0 = LABEL_W + PAD_L;
+  var x = function (v) { return X0 + (v - S) * ppu; };
+  var laneMap = {}; data.lanes.forEach(function (l) { laneMap[l.id] = l; });
+  var ed = !!o.editing, sel = o.selected || null;
+  function isSel(type, id) { return sel && sel.type === type && (id == null || sel.id === id); }
+  var maxR = X0 + (E - S) * ppu + PAD_R;
+
+  var root = el('div', 'tl tl-scope' + (ed ? ' tl-editing' : ''));
+  root.style.setProperty('--lw', LABEL_W + 'px');
+  root.style.setProperty('--accent', data.accent);
+
+  if (o.header !== false) {
+    var head = el('div', 'tl-head' + (isSel('meta') ? ' is-selected' : '') + (data.title || data.subtitle || data.author ? '' : ' is-empty'));
+    head.dataset.kind = 'meta';
+    if (data.title) head.appendChild(el('h1', '', data.title));
+    var sub = [data.subtitle, data.author].filter(Boolean).join(' · ');
+    if (sub) head.appendChild(el('div', 'tl-sub', sub));
+    root.appendChild(head);
+  }
+
+  /* axis */
+  var axis = el('div', 'tl-axis' + (isSel('axis') ? ' is-selected' : ''));
+  axis.dataset.kind = 'axis';
+  axis.appendChild(el('div', 'tl-axis-corner', ax.label));
+  axis.appendChild(el('div', 'tl-axis-line'));
+  var ticks = ticksFor(data, x, ppu);
+  ticks.forEach(function (t) {
+    var tk = el('div', 'tl-tick'); tk.style.left = x(t.at) + 'px'; axis.appendChild(tk);
+    var tl = el('div', 'tl-tick-l', t.label); tl.style.left = x(t.at) + 'px'; axis.appendChild(tl);
+  });
+  root.appendChild(axis);
+
+  /* body */
+  var body = el('div', 'tl-body'); root.appendChild(body);
+  var bands = el('div', 'tl-bands'); body.appendChild(bands);
+  ticks.forEach(function (t) { var gl = el('div', 'tl-gridline'); gl.style.left = x(t.at) + 'px'; body.appendChild(gl); });
+
+  /* eras */
+  var eraBoxes = data.eras.map(function (e) { var l = x(e.start); return { l: l, r: Math.max(x(e.end), l + 24) }; });
+  var ep = pack(eraBoxes, 0), eraH = data.eras.length ? ep.rows * 26 + 8 : 0;
+  data.eras.forEach(function (e, i) {
+    var c = e.color || data.accent, l = x(e.start), w = Math.max(x(e.end) - l, 24);
+    var band = el('div', 'tl-band' + (e.tentative ? ' is-tentative' : '')); band.style.cssText = 'left:' + l + 'px;width:' + w + 'px;--c:' + c; bands.appendChild(band);
+    var tab = el('div', 'tl-era' + (e.tentative ? ' is-tentative' : '') + (isSel('era', e.id) ? ' is-selected' : ''));
+    tab.dataset.kind = 'era'; tab.dataset.id = e.id;
+    tab.style.cssText = 'left:' + l + 'px;width:' + (w - 2) + 'px;top:' + (ep.row[i] * 26 + 5) + 'px;--c:' + c;
+    tab.appendChild(el('span', '', e.label));
+    if (ed) { tab.appendChild(hdl('l')); tab.appendChild(hdl('r')); }
+    body.appendChild(tab);
+    maxR = Math.max(maxR, l + w + 24);
+  });
+  if (eraH) { var sp = el('div'); sp.style.height = eraH + 'px'; body.appendChild(sp); }
+
+  /* lanes */
+  function hdl(side) { var h = el('div', 'tl-h ' + side); h.dataset.handle = side; return h; }
+  data.lanes.forEach(function (lane) {
+    var items = data.items.filter(function (it) { return it.lane === lane.id; });
+    var spans = items.filter(function (it) { return it.kind === 'span'; });
+    var evs = items.filter(function (it) { return it.kind !== 'span'; });
+    var sB = spans.map(function (it) { var l = x(it.start); return { l: l, r: Math.max(x(it.end), l + 18) }; });
+    var sP = pack(sB, 0);
+    var eW = evs.map(function (it) { return Math.min(230, Math.ceil(tw(it.title, 650, 12.5) * 1.04) + 24); });
+    var eB = evs.map(function (it, i) { var l = x(it.start) - 7; return { l: l, r: l + 20 + eW[i] }; });
+    var eP = pack(eB, 8);
+    var rowH = [], r;
+    for (r = 0; r < sP.rows; r++) rowH[r] = 0;
+    var sH = spans.map(function (it) { return (it.subtitle && (it.tags || []).indexOf('novella') < 0) ? SPAN_H : SPAN_SM; });
+    sH.forEach(function (h, i) { rowH[sP.row[i]] = Math.max(rowH[sP.row[i]], h); });
+    for (r = 0; r < eP.rows; r++) rowH.push(EVENT_H);
+    var tops = [], y = LANE_PT;
+    rowH.forEach(function (h, i) { tops[i] = y; y += h + ROW_GAP; });
+    var laneH = Math.max(64, rowH.length ? y - ROW_GAP + LANE_PB : 64);
+
+    var le = el('div', 'tl-lane'); le.dataset.lane = lane.id; le.style.height = laneH + 'px';
+    var lh = el('div', 'tl-lane-head' + (isSel('lane', lane.id) ? ' is-selected' : ''));
+    lh.dataset.kind = 'lane'; lh.dataset.id = lane.id; lh.style.setProperty('--c', lane.color);
+    lh.appendChild(el('i')); lh.appendChild(el('span', '', lane.label));
+    le.appendChild(lh);
+    if (!items.length && ed) le.appendChild(el('div', 'tl-empty', 'Double-click to add an event'));
+
+    for (r = 0; r < eP.rows; r++) {
+      var rl = el('div', 'tl-rowline'); rl.style.top = (tops[sP.rows + r] + EVENT_H / 2) + 'px'; rl.style.left = LABEL_W + 'px'; rl.style.setProperty('--c', lane.color); le.appendChild(rl);
+    }
+    function common(it, node, rowTop, h) {
+      var c = it.color || lane.color;
+      node.dataset.kind = 'item'; node.dataset.id = it.id; node.dataset.lane = lane.id;
+      node.style.setProperty('--c', c);
+      if (it.tentative) node.classList.add('is-tentative');
+      if (isSel('item', it.id)) node.classList.add('is-selected');
+      var hidden = it.spoiler && !ed && !o.spoilers && !(o.revealed && o.revealed.has(it.id));
+      if (hidden) { node.classList.add('is-hidden'); node.appendChild(el('span', 'tl-chip', 'Spoiler')); }
+      else if (it.spoiler && ed) node.appendChild(el('span', 'tl-flag', 'Spoiler'));
+      node.tabIndex = 0;
+      node.setAttribute('role', 'button');
+      node.setAttribute('aria-label', hidden ? 'Spoiler hidden. Activate to reveal.' : it.title + (it.subtitle ? ', ' + it.subtitle : ''));
+    }
+    spans.forEach(function (it, i) {
+      var l = x(it.start), w = Math.max(x(it.end) - l, 18), h = sH[i];
+      var wrapT = h === SPAN_H && it.title.length > 8 && tw(it.title, 650, 13) > w - 4 - 18;
+      var n = el('div', 'tl-item tl-span' + (h === SPAN_SM ? ' tl-sm' : '') + (wrapT ? ' tl-wrap' : ''));
+      n.style.cssText = 'left:' + l + 'px;top:' + (tops[sP.row[i]] + (rowH[sP.row[i]] - h) / 2) + 'px;width:' + (w - 4) + 'px;height:' + h + 'px';
+      n.appendChild(el('span', 'tl-t', it.title));
+      if (it.subtitle && h === SPAN_H && !wrapT) n.appendChild(el('span', 'tl-s', it.subtitle));
+      common(it, n);
+      if (ed) { n.appendChild(hdl('l')); n.appendChild(hdl('r')); }
+      le.appendChild(n);
+      maxR = Math.max(maxR, l + w + 24);
+    });
+    evs.forEach(function (it, i) {
+      var l = x(it.start) - 7, w = 20 + eW[i];
+      var n = el('div', 'tl-item tl-event');
+      n.style.cssText = 'left:' + l + 'px;top:' + tops[sP.rows + eP.row[i]] + 'px;width:' + w + 'px;height:' + EVENT_H + 'px';
+      n.appendChild(el('i', 'tl-dot'));
+      var lab = el('div', 'tl-label'); lab.appendChild(el('span', 'tl-t', it.title)); n.appendChild(lab);
+      common(it, n);
+      le.appendChild(n);
+      maxR = Math.max(maxR, l + w + 24);
+    });
+    body.appendChild(le);
+  });
+  if (o.footer !== false) root.appendChild(el('div', 'tl-foot'));
+  root.style.width = Math.ceil(maxR) + 'px';
+  root.__geo = { x: x, X0: X0, LABEL_W: LABEL_W, S: S, E: E, ppu: ppu, val: function (px) { return S + (px - X0) / ppu; } };
+  return root;
+}
+
+/* ---------------- Popover ---------------- */
+function closePop() { document.querySelectorAll('.tl-pop').forEach(function (p) { p.remove(); }); }
+function openPop(anchor, data, kind, id) {
+  closePop();
+  var lane, obj;
+  if (kind === 'era') obj = data.eras.find(function (e) { return e.id === id; });
+  else obj = data.items.find(function (e) { return e.id === id; });
+  if (!obj) return;
+  if (kind === 'item') lane = data.lanes.find(function (l) { return l.id === obj.lane; });
+  var c = obj.color || (lane && lane.color) || data.accent;
+  var p = el('div', 'tl-pop'); p.style.setProperty('--c', c);
+  var h = el('h3', '', kind === 'era' ? obj.label : obj.title);
+  if (obj.spoiler) h.appendChild(el('span', 'p-badge', 'Spoiler'));
+  if (obj.tentative) h.appendChild(el('span', 'p-badge', 'Tentative'));
+  p.appendChild(h);
+  if (obj.subtitle) p.appendChild(el('div', 'p-sub', obj.subtitle));
+  var range = (kind === 'era' || obj.kind === 'span') ? fmt(obj.start) + ' → ' + fmt(obj.end) : 'At ' + fmt(obj.start);
+  p.appendChild(el('div', 'p-meta', (lane ? lane.label + ' · ' : 'Era · ') + data.axis.label + ' ' + range));
+  if (obj.description) p.appendChild(el('p', '', obj.description));
+  if (obj.tags && obj.tags.length) { var tg = el('div', 'p-tags'); obj.tags.forEach(function (t) { tg.appendChild(el('span', '', t)); }); p.appendChild(tg); }
+  document.body.appendChild(p);
+  var r = anchor.getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight;
+  var left = clamp(r.left, 8, Math.max(8, innerWidth - pw - 8)), top = r.bottom + 8;
+  if (top + ph > innerHeight - 8) top = r.top - ph - 8;
+  if (top < 8) top = 8;
+  p.style.left = left + 'px'; p.style.top = top + 'px';
+}
+document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.tl-pop') && !e.target.closest('.tl-item,.tl-era')) closePop(); }, true);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+
+/* ---------------- Viewport: pan / zoom / spoilers / popover ---------------- */
+function mount(host, data, opts) {
+  opts = opts || {};
+  var st = { data: data, ppu: opts.ppu || null, spoilers: !!opts.spoilers, editing: !!opts.editing, popover: opts.popover !== false, selected: null, revealed: new Set() };
+  host.classList.add('tl-host');
+  var sc = el('div', 'tl-scroller'); host.appendChild(sc);
+  var zc = el('div', 'tl-zoomctl');
+  var bm = el('button', '', '−'), bp = el('button', '', '+'), bf = el('button', 'fit', 'Fit');
+  bm.title = 'Zoom out'; bp.title = 'Zoom in'; bf.title = 'Fit whole timeline';
+  bm.setAttribute('aria-label', 'Zoom out'); bp.setAttribute('aria-label', 'Zoom in'); bf.setAttribute('aria-label', 'Fit to screen');
+  [bm, bp, bf].forEach(function (b) { b.type = 'button'; zc.appendChild(b); });
+  host.appendChild(zc);
+  var rootEl = null, swallow = false, zq = null, zraf = 0;
+
+  function fitPpu() {
+    var a = st.data.axis;
+    return clamp((sc.clientWidth - LABEL_W - PAD_L - PAD_R) / Math.max(0.001, a.end - a.start), MIN_PPU, MAX_PPU);
+  }
+  function draw() {
+    var l = sc.scrollLeft, t = sc.scrollTop;
+    if (!st.ppu) st.ppu = clamp(fitPpu(), 88, 130);
+    rootEl = render(st.data, { ppu: st.ppu, spoilers: st.spoilers, revealed: st.revealed, selected: st.selected, editing: st.editing });
+    sc.replaceChildren(rootEl);
+    sc.scrollLeft = l; sc.scrollTop = t;
+  }
+  function zoomNow(ppu, ax) {
+    ppu = clamp(ppu, MIN_PPU, MAX_PPU);
+    if (Math.abs(ppu - st.ppu) < 1e-6) return;
+    var r = sc.getBoundingClientRect();
+    if (ax == null) ax = r.left + LABEL_W + (r.width - LABEL_W) / 2;
+    var rr = rootEl.getBoundingClientRect(), geo = rootEl.__geo;
+    var v = geo.val(ax - rr.left);
+    st.ppu = ppu; draw();
+    var nr = rootEl.getBoundingClientRect();
+    sc.scrollLeft += nr.left + rootEl.__geo.x(v) - ax;
+    closePop();
+    if (opts.onZoom) opts.onZoom(st.ppu);
+  }
+  function zoom(ppu, ax) {
+    zq = { ppu: ppu, ax: ax };
+    if (!zraf) zraf = requestAnimationFrame(function () { zraf = 0; var q = zq; zq = null; if (q) zoomNow(q.ppu, q.ax); });
+  }
+  var api = {
+    scroller: sc,
+    root: function () { return rootEl; },
+    getPpu: function () { return st.ppu; },
+    zoomTo: zoomNow,
+    zoomBy: function (f, ax) { zoomNow(st.ppu * f, ax); },
+    fit: function () { sc.scrollLeft = 0; zoomNow(fitPpu()); if (opts.onZoom) opts.onZoom(st.ppu); },
+    justPanned: function () { return swallow; },
+    revealed: st.revealed,
+    setData: function (d, o) {
+      st.data = d;
+      if (o && o.reset) { st.ppu = o.ppu || null; st.revealed.clear(); st.selected = null; sc.scrollLeft = 0; sc.scrollTop = 0; closePop(); }
+      draw();
+      if (o && o.reset && opts.onZoom) opts.onZoom(st.ppu);
+    },
+    set: function (o) {
+      if ('spoilers' in o) st.spoilers = !!o.spoilers;
+      if ('editing' in o) st.editing = !!o.editing;
+      if ('popover' in o) st.popover = !!o.popover;
+      if ('selected' in o) st.selected = o.selected;
+      closePop(); draw();
+    },
+    setSelected: function (s) {
+      st.selected = s;
+      sc.querySelectorAll('.is-selected').forEach(function (n) { n.classList.remove('is-selected'); });
+      if (!s) return;
+      var q = s.type === 'axis' ? '.tl-axis' : s.type === 'meta' ? '.tl-head' : '[data-kind="' + (s.type === 'item' ? 'item' : s.type) + '"][data-id="' + (window.CSS && CSS.escape ? CSS.escape(s.id) : s.id) + '"]';
+      var n = sc.querySelector(q); if (n) n.classList.add('is-selected');
+    },
+    find: function (type, id) { return sc.querySelector('[data-kind="' + type + '"][data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]'); },
+    reveal: function (id) { st.revealed.add(id); },
+    destroy: function () { sc.remove(); zc.remove(); closePop(); }
+  };
+
+  bm.onclick = function () { api.zoomBy(1 / 1.3); };
+  bp.onclick = function () { api.zoomBy(1.3); };
+  bf.onclick = function () { api.fit(); };
+
+  sc.addEventListener('wheel', function (e) {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    var f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0022));
+    zoom((zq ? zq.ppu : st.ppu) * f, e.clientX);
+  }, { passive: false });
+
+  /* pan + pinch with pointer events */
+  var ptrs = new Map(), pan = null, pinch = null, raf = 0;
+  sc.addEventListener('pointerdown', function (e) {
+    if (e.__tlHandled || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) pan = { id: e.pointerId, x: e.clientX, y: e.clientY, sl: sc.scrollLeft, st: sc.scrollTop, moved: false, vx: 0, vy: 0, lx: e.clientX, ly: e.clientY, lt: performance.now() };
+    else if (ptrs.size === 2) { var p = Array.from(ptrs.values()); pinch = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1, ppu: st.ppu }; if (pan) pan.moved = true; }
+    cancelAnimationFrame(raf);
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  });
+  function move(e) {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && ptrs.size >= 2) {
+      var p = Array.from(ptrs.values()), d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      zoom(pinch.ppu * d / pinch.d, (p[0].x + p[1].x) / 2);
+      swallow = true; return;
+    }
+    if (pan && e.pointerId === pan.id) {
+      var dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+      if (!pan.moved) { if (Math.hypot(dx, dy) < 6) return; pan.moved = true; sc.classList.add('panning'); closePop(); }
+      sc.scrollLeft = pan.sl - dx; sc.scrollTop = pan.st - dy;
+      var now = performance.now(), dt = Math.max(1, now - pan.lt);
+      pan.vx = 0.7 * pan.vx + 0.3 * (e.clientX - pan.lx) / dt; pan.vy = 0.7 * pan.vy + 0.3 * (e.clientY - pan.ly) / dt;
+      pan.lx = e.clientX; pan.ly = e.clientY; pan.lt = now;
+    }
+  }
+  function up(e) {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    if (ptrs.size === 0) {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      sc.classList.remove('panning');
+      var wasMoved = (pan && pan.moved) || swallow;
+      if (wasMoved) { swallow = true; setTimeout(function () { swallow = false; }, 0); }
+      if (pan && pan.moved && e.pointerType === 'touch' && e.type === 'pointerup' && performance.now() - pan.lt < 80) {
+        var vx = pan.vx, vy = pan.vy, last = performance.now();
+        (function step() {
+          var n = performance.now(), dt = n - last; last = n;
+          sc.scrollLeft -= vx * dt; sc.scrollTop -= vy * dt; vx *= 0.94; vy *= 0.94;
+          if (Math.abs(vx) > 0.02 || Math.abs(vy) > 0.02) raf = requestAnimationFrame(step);
+        })();
+      }
+      pan = null;
+    }
+  }
+
+  /* click → spoiler reveal + popover */
+  sc.addEventListener('click', function (e) {
+    if (swallow) { e.stopPropagation(); e.preventDefault(); return; }
+    var t = e.target.closest('[data-kind="item"],[data-kind="era"]');
+    closePop();
+    if (!t || !st.popover) return;
+    openFor(t);
+  });
+  sc.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && st.popover) { var t = e.target.closest('[data-kind="item"]'); if (t) { e.preventDefault(); openFor(t); } }
+  });
+  function openFor(t) {
+    var kind = t.dataset.kind, id = t.dataset.id;
+    if (t.classList.contains('is-hidden')) { st.revealed.add(id); draw(); t = api.find(kind, id) || t; }
+    openPop(t, st.data, kind, id);
+  }
+  sc.addEventListener('scroll', function () { var p = document.querySelector('.tl-pop'); if (p) closePop(); }, { passive: true });
+
+  draw();
+  return api;
+}
+
+g.TL = { render: render, mount: mount, openPop: openPop, closePop: closePop, PALETTE: PALETTE, fmt: fmt, LABEL_W: LABEL_W, PAD_L: PAD_L, PAD_R: PAD_R, FONT: FONT };
+})(window);
+</script>
+<script id="app">
+(function () {
+"use strict";
+/* ---------------- Example timelines (plain Chronicle JSON, rendered by the same renderer) ---------------- */
+const EXAMPLES = (function () {
+  function it(id, lane, kind, start, end, title, subtitle, description, extra) {
+    const o = { id, lane, kind, start };
+    if (kind === 'span') o.end = end;
+    Object.assign(o, { title, subtitle: subtitle || '', description: description || '', color: null, spoiler: false, tentative: false, tags: [] }, extra || {});
+    return o;
+  }
+  /* --- He Who Fights with Monsters --- */
+  const years = [2021, 2021, 2021, 2021, 2022, 2022, 2022, 2022, 2023, 2023, 2024, 2025, 2026];
+  const hwDesc = {
+    1: 'Jason Asano wakes in a world of magic and monsters and begins to carve out a place for himself.',
+    2: 'A contest draws young elites to Greenstone, setting Jason against the world’s rising talent.',
+    3: 'Closes out the Greenstone arc (books 1–3).',
+    4: 'Opens the Earth homecoming arc (books 4–6).',
+    5: 'Continues the Earth homecoming arc.',
+    6: 'Wraps up the Earth homecoming arc (books 4–6).'
+  };
+  const hwItems = [];
+  for (let n = 1; n <= 14; n++) {
+    hwItems.push(it('hw-b' + n, 'books', 'span', n, n + 1, 'Book ' + n, n === 14 ? 'Upcoming' : String(years[n - 1]),
+      n === 14 ? 'The next instalment in the series. No release date confirmed yet.' : (hwDesc[n] || 'Continues Jason’s story. Plot details are left out here to avoid spoilers.'),
+      n === 14 ? { tentative: true } : {}));
+  }
+  hwItems.push(
+    it('hw-jason', 'characters', 'span', 1, 15, 'Jason Asano', 'Protagonist', 'The series’ central character, present from the first page to the latest book.'),
+    it('hw-e1', 'events', 'event', 1.1, null, 'Jason wakes in a world of magic and monsters', '', 'The story begins as Jason finds himself somewhere very far from home.'),
+    it('hw-e2', 'events', 'event', 2.2, null, 'A contest draws young elites to Greenstone', '', 'Talented young people from across the world converge on Greenstone to compete.'),
+    it('hw-e3', 'events', 'event', 4.15, null, 'Jason returns to Earth', '', 'Jason makes his way back to the world he left behind, and things there are not as he remembered.', { spoiler: true })
+  );
+  const hw = {
+    format: 'chronicle-timeline', version: 1,
+    title: 'He Who Fights with Monsters', subtitle: 'Reading order · books 1–14', author: 'Shirtaloon (Travis Deverell)', accent: '#5a2ea6',
+    axis: { label: 'Reading order', start: 1, end: 15, snap: 0.5 },
+    lanes: [
+      { id: 'books', label: 'Books', color: '#5a2ea6' },
+      { id: 'characters', label: 'Characters', color: '#1f9a8a' },
+      { id: 'events', label: 'Key events', color: '#d9772b' }
+    ],
+    eras: [
+      { id: 'hw-greenstone', label: 'Greenstone', start: 1, end: 4, color: '#2f9e5f', tentative: false },
+      { id: 'hw-earth', label: 'Earth homecoming', start: 4, end: 7, color: '#2b7fc4', tentative: false }
+    ],
+    items: hwItems
+  };
+
+  /* --- The Stormlight Archive --- */
+  const sl = {
+    format: 'chronicle-timeline', version: 1,
+    title: 'The Stormlight Archive', subtitle: 'Reading order · two ten-book arcs', author: 'Brandon Sanderson', accent: '#2b5f9e',
+    axis: { label: 'Reading order', start: 1, end: 10, snap: 0.5 },
+    lanes: [
+      { id: 'books', label: 'Books', color: '#2b5f9e' },
+      { id: 'characters', label: 'Characters', color: '#1f9a8a' },
+      { id: 'events', label: 'Key events', color: '#c9533d' }
+    ],
+    eras: [
+      { id: 'sl-arc1', label: 'First arc', start: 1, end: 8, color: '#2b5f9e', tentative: false },
+      { id: 'sl-arc2', label: 'Second arc (after a ~10-year time skip)', start: 8, end: 10, color: '#8a5cc4', tentative: true }
+    ],
+    items: [
+      it('sl-b1', 'books', 'span', 1, 2, 'The Way of Kings', '2010', 'Kaladin, Shallan and Dalinar are drawn into the war on the Shattered Plains as the Knights Radiant’s old powers begin to stir.'),
+      it('sl-b2', 'books', 'span', 2, 3, 'Words of Radiance', '2014', 'Shallan’s search for the secrets of the Knights Radiant intertwines with Kaladin’s duty and Dalinar’s push to unite the highprinces.'),
+      it('sl-b3', 'books', 'span', 3, 4, 'Edgedancer', 'Novella · 2016', 'A novella following the irrepressible Lift as she gets pulled into the intrigues of Yeddaw.', { tags: ['novella'] }),
+      it('sl-b4', 'books', 'span', 4, 5, 'Oathbringer', '2017', 'Dalinar’s past comes to light as the Radiants try to rally the world against Odium.'),
+      it('sl-b5', 'books', 'span', 5, 6, 'Dawnshard', 'Novella · 2020', 'A novella following an expedition to the mysterious island of Akinah.', { tags: ['novella'] }),
+      it('sl-b6', 'books', 'span', 6, 7, 'Rhythm of War', '2020', 'Navani’s research into Light and fabrials runs alongside the war’s toll on Kaladin and Venli’s reckoning with her people’s past.'),
+      it('sl-b7', 'books', 'span', 7, 8, 'Wind and Truth', '2024', 'The final book of the series’ first arc, built around the Ten Days and the fight against Odium.'),
+      it('sl-b8', 'books', 'span', 8, 9, 'Book 6', 'TBA', 'The next main-line book, opening the second arc. Title and release date have not been announced.', { tentative: true }),
+      it('sl-c1', 'characters', 'span', 1, 2, 'Kaladin', 'Flashbacks · The Way of Kings', 'The book’s flashbacks follow Kaladin’s youth and how he came to be a slave.'),
+      it('sl-c2', 'characters', 'span', 2, 3, 'Shallan', 'Flashbacks · Words of Radiance', 'Shallan’s flashbacks revisit her childhood and her family.'),
+      it('sl-c3', 'characters', 'span', 4, 5, 'Dalinar', 'Flashbacks · Oathbringer', 'Dalinar’s flashbacks reconstruct the years he has forgotten.'),
+      it('sl-c4', 'characters', 'span', 6, 7, 'Eshonai & Venli', 'Flashbacks · Rhythm of War', 'Sister-and-sister flashbacks follow two Parshendi on opposite sides of a fateful choice.'),
+      it('sl-c5', 'characters', 'span', 7, 8, 'Szeth', 'Flashbacks · Wind and Truth', 'Szeth’s flashbacks trace his path from Shin outcast to the Assassin in White.'),
+      it('sl-e1', 'events', 'event', 1.02, null, 'Assassination of King Gavilar', '', 'During a feast celebrating a treaty with the Parshendi, King Gavilar of Alethkar is killed by the Assassin in White, setting the series in motion.'),
+      it('sl-e2', 'events', 'event', 1.9, null, 'Battle of Narak', '', 'The climactic clash at the Tower on the Shattered Plains, where Kaladin and Szeth fight as the armies meet.', { spoiler: true }),
+      it('sl-e3', 'events', 'event', 4.9, null, 'Battle of Thaylen Field', '', 'Dalinar’s coalition and Odium’s forces meet on Thaylen Field in the climax of Oathbringer.', { spoiler: true }),
+      it('sl-e4', 'events', 'event', 6.2, null, 'Occupation of Urithiru', '', 'Odium’s forces take the tower-city of Urithiru, trapping the Radiants and forcing them to resist from within.', { spoiler: true }),
+      it('sl-e5', 'events', 'event', 7.45, null, 'Contest of champions', '', 'Dalinar and Odium agree to settle the war through a contest of champions.', { spoiler: true })
+    ]
+  };
+  return [
+    { id: 'ex-hwfwm', data: hw },
+    { id: 'ex-stormlight', data: sl }
+  ];
+})();
+/* ---------------- Utilities ---------------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = p => (p || 'x') + Math.random().toString(36).slice(2, 7) + Date.now().toString(36).slice(-3);
+const slugify = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const r4 = n => Math.round(n * 1e4) / 1e4;
+const DEFAULT_ACCENT = '#5a2ea6';
+const LANE_COLORS = ['#2b5f9e', '#1f9a8a', '#d9772b', '#c0479e', '#2f9e5f', '#d23f5a', '#d9a21b', '#6b7280'];
+const cssCtx = document.createElement('canvas').getContext('2d');
+
+function toHex(c) {
+  if (typeof c !== 'string' || !c.trim()) return null;
+  c = c.trim();
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c.toLowerCase();
+  cssCtx.fillStyle = '#000001'; cssCtx.fillStyle = c;
+  const v = cssCtx.fillStyle;
+  if (v === '#000001' && c.toLowerCase() !== '#000001') return null;
+  return /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null;
+}
+function num(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : NaN;
+  if (typeof v === 'string' && v.trim() !== '') { const n = Number(v.trim().replace(',', '.')); return isFinite(n) ? n : NaN; }
+  return NaN;
+}
+const bool = v => v === true || v === 'true' || v === 1 || v === 'yes';
+const str = v => (v == null ? '' : typeof v === 'string' ? v : (typeof v === 'number' ? String(v) : ''));
+function uniq(base, set) { let id = base, n = 2; while (set.has(id)) id = base + '-' + n++; set.add(id); return id; }
+
+/* ---------------- Normalise: forgiving input → canonical Chronicle JSON ---------------- */
+function normalize(raw) {
+  if (Array.isArray(raw)) raw = { items: raw };
+  if (!raw || typeof raw !== 'object') throw new Error('Expected a JSON object (or a list of items) but found ' + (raw === null ? 'null' : typeof raw) + '.');
+  if (!Array.isArray(raw.items) && !Array.isArray(raw.lanes) && !Array.isArray(raw.eras)) {
+    for (const k of ['timeline', 'data', 'chronicle']) {
+      if (raw[k] && typeof raw[k] === 'object') { raw = Array.isArray(raw[k]) ? { items: raw[k] } : raw[k]; break; }
+    }
+  }
+  if (!Array.isArray(raw.items)) {
+    if (raw.items == null && (Array.isArray(raw.lanes) || Array.isArray(raw.eras))) raw = Object.assign({}, raw, { items: [] });
+    else throw new Error('No "items" list found. A Chronicle timeline needs an "items" array (or paste a bare array of items).');
+  }
+  const problems = [];
+  const out = {
+    format: 'chronicle-timeline', version: 1,
+    title: str(raw.title) || 'Untitled timeline', subtitle: str(raw.subtitle), author: str(raw.author),
+    accent: toHex(raw.accent) || DEFAULT_ACCENT
+  };
+  /* lanes */
+  const lanes = [], laneIds = new Set(), byLabel = new Map();
+  const addLane = (id, label, color) => {
+    const lane = { id: uniq(id || slugify(label) || 'lane', laneIds), label: label || id || 'Lane', color: toHex(color) || LANE_COLORS[lanes.length % LANE_COLORS.length] };
+    lanes.push(lane); byLabel.set(lane.label.toLowerCase(), lane); return lane;
+  };
+  (Array.isArray(raw.lanes) ? raw.lanes : []).forEach((l, i) => {
+    if (typeof l === 'string') l = { label: l };
+    if (!l || typeof l !== 'object') { problems.push('Lane ' + (i + 1) + ' is not an object.'); return; }
+    const label = str(l.label) || str(l.name) || str(l.title) || str(l.id);
+    addLane(slugify(str(l.id)) || slugify(label), label || ('Lane ' + (i + 1)), l.color);
+  });
+  const findLane = v => {
+    const s = str(v) || (typeof v === 'number' ? String(v) : '');
+    if (!s) return null;
+    return lanes.find(l => l.id === s) || lanes.find(l => l.id === slugify(s)) || byLabel.get(s.toLowerCase()) || addLane(slugify(s), s);
+  };
+  /* items */
+  const itemIds = new Set(), items = [];
+  let lo = Infinity, hi = -Infinity;
+  raw.items.forEach((ri, idx) => {
+    if (!ri || typeof ri !== 'object' || Array.isArray(ri)) { problems.push('Item ' + (idx + 1) + ' is not an object.'); return; }
+    const title = str(ri.title) || str(ri.name) || str(ri.label);
+    const tag = 'Item ' + (idx + 1) + (title ? ' (“' + title + '”)' : '');
+    let s = num(ri.start !== undefined ? ri.start : (ri.at !== undefined ? ri.at : ri.position)), e = num(ri.end !== undefined ? ri.end : ri.to);
+    if (isNaN(s)) { if (!isNaN(e)) { s = e; e = NaN; } else { problems.push(tag + ' has no numeric "start" position.'); return; } }
+    if (!isNaN(e) && e < s) { const t = s; s = e; e = t; }
+    let kind = ri.kind === 'span' || ri.kind === 'event' ? ri.kind : (!isNaN(e) && e !== s ? 'span' : 'event');
+    if (kind === 'span' && (isNaN(e) || e === s)) e = s + 1;
+    let lane = findLane(ri.lane !== undefined ? ri.lane : ri.laneId);
+    if (!lane) lane = lanes[0] || addLane('items', 'Items');
+    let tags = ri.tags;
+    if (typeof tags === 'string') tags = tags.split(',');
+    tags = Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [];
+    const it = { id: uniq(str(ri.id) || uid('i'), itemIds), lane: lane.id, kind, start: r4(s) };
+    if (kind === 'span') it.end = r4(e);
+    Object.assign(it, { title: title || 'Untitled', subtitle: str(ri.subtitle), description: str(ri.description) || str(ri.desc), color: toHex(ri.color), spoiler: bool(ri.spoiler), tentative: bool(ri.tentative), tags });
+    items.push(it);
+    lo = Math.min(lo, it.start); hi = Math.max(hi, kind === 'span' ? it.end : it.start);
+  });
+  /* eras */
+  const eraIds = new Set(), eras = [];
+  (Array.isArray(raw.eras) ? raw.eras : []).forEach((re, idx) => {
+    if (!re || typeof re !== 'object') { problems.push('Era ' + (idx + 1) + ' is not an object.'); return; }
+    const label = str(re.label) || str(re.title) || str(re.name);
+    let s = num(re.start), e = num(re.end);
+    if (isNaN(s) || isNaN(e)) { problems.push('Era ' + (idx + 1) + (label ? ' (“' + label + '”)' : '') + ' needs numeric "start" and "end".'); return; }
+    if (e < s) { const t = s; s = e; e = t; }
+    if (e === s) e = s + 1;
+    eras.push({ id: uniq(str(re.id) || uid('e'), eraIds), label: label || 'Era', start: r4(s), end: r4(e), color: toHex(re.color) || null, tentative: bool(re.tentative) });
+    lo = Math.min(lo, s); hi = Math.max(hi, e);
+  });
+  if (problems.length) throw new Error('Couldn’t import — ' + (problems.length > 4 ? problems.slice(0, 4).join(' ') + ' …and ' + (problems.length - 4) + ' more.' : problems.join(' ')));
+  /* axis */
+  const ra = raw.axis && typeof raw.axis === 'object' ? raw.axis : {};
+  let as = num(ra.start), ae = num(ra.end);
+  if (isNaN(as)) as = isFinite(lo) ? Math.floor(lo) : 1;
+  if (isNaN(ae)) ae = isFinite(hi) ? Math.ceil(hi) : as + 8;
+  if (as > ae) { const t = as; as = ae; ae = t; }
+  if (as === ae) ae = as + 1;
+  if (isFinite(lo) && lo < as) as = Math.floor(lo);
+  if (isFinite(hi) && hi > ae) ae = Math.ceil(hi);
+  const axis = { label: str(ra.label) || 'Reading order', start: r4(as), end: r4(ae), snap: num(ra.snap) > 0 ? r4(num(ra.snap)) : 0.5 };
+  if (Array.isArray(ra.ticks)) {
+    const ticks = ra.ticks.map(t => (t && typeof t === 'object') ? { at: num(t.at), label: str(t.label) || (typeof t.label === 'number' ? String(t.label) : '') } : { at: num(t), label: String(t) })
+      .filter(t => !isNaN(t.at)).map(t => ({ at: r4(t.at), label: t.label || String(r4(t.at)) }));
+    if (ticks.length) axis.ticks = ticks;
+  }
+  out.axis = axis;
+  out.lanes = lanes; out.eras = eras; out.items = items;
+  return out;
+}
+
+/* ---------------- Import: find JSON inside AI chatter / code fences / exported HTML ---------------- */
+function sliceBalanced(s) {
+  const a = s.search(/[{[]/);
+  if (a < 0) return null;
+  let depth = 0, inStr = false;
+  for (let i = a; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) { if (c === '\\') i++; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') { depth--; if (depth === 0) return s.slice(a, i + 1); }
+  }
+  return s.slice(a); // unterminated
+}
+function cleanJsonish(s) {
+  let o = '', i = 0; const n = s.length;
+  while (i < n) {
+    const c = s[i];
+    if (c === '"') { let j = i + 1; while (j < n && s[j] !== '"') { if (s[j] === '\\') j++; j++; } o += s.slice(i, j + 1); i = j + 1; continue; }
+    if (c === '“' || c === '”' || c === "'") {
+      const close = c === "'" ? "'" : null; let j = i + 1;
+      while (j < n && (close ? s[j] !== close : (s[j] !== '”' && s[j] !== '“' && s[j] !== '"'))) { if (s[j] === '\\') j++; j++; }
+      o += JSON.stringify(s.slice(i + 1, j)); i = j + 1; continue;
+    }
+    if (c === '/' && s[i + 1] === '/') { while (i < n && s[i] !== '\n') i++; continue; }
+    if (c === '/' && s[i + 1] === '*') { const j = s.indexOf('*/', i + 2); i = j < 0 ? n : j + 2; continue; }
+    if (c === ',') { let j = i + 1; while (j < n && /\s/.test(s[j])) j++; if (s[j] === '}' || s[j] === ']') { i++; continue; } }
+    o += c; i++;
+  }
+  return o;
+}
+function parseImport(text) {
+  text = String(text || '').replace(/^﻿/, '');
+  if (!text.trim()) throw new Error('Nothing to import — the file or clipboard was empty.');
+  let body;
+  const m = text.match(/<script[^>]*\bid=["']tl-data["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (m) body = m[1];
+  else if (/^\s*<(!doctype|html|head|body)/i.test(text)) throw new Error('That HTML file isn’t a Chronicle export — it has no embedded timeline data (#tl-data).');
+  else {
+    const fences = Array.from(text.matchAll(/```[a-zA-Z]*\s*\n?([\s\S]*?)```/g)).map(x => x[1]).filter(x => /[{[]/.test(x));
+    body = null;
+    for (const f of fences) { const b = sliceBalanced(f); if (b) { body = b; break; } }
+    if (body == null) body = sliceBalanced(text);
+    if (body == null) throw new Error('No JSON found — expected an object { … } or a list [ … ] of timeline items.');
+  }
+  let raw;
+  try { raw = JSON.parse(body); }
+  catch (e1) {
+    try { raw = JSON.parse(cleanJsonish(body)); }
+    catch (e2) {
+      const cut = !/[}\]]\s*$/.test(body.trim());
+      throw new Error('The JSON couldn’t be parsed' + (cut ? ' — it looks cut off (missing closing brackets)' : '') + ': ' + e1.message);
+    }
+  }
+  return normalize(raw);
+}
+
+/* Axis always covers all content (only ever grows). */
+function fitAxis(d) {
+  let lo = Infinity, hi = -Infinity;
+  d.items.forEach(i => { lo = Math.min(lo, i.start); hi = Math.max(hi, i.kind === 'span' ? i.end : i.start); });
+  d.eras.forEach(e => { lo = Math.min(lo, e.start); hi = Math.max(hi, e.end); });
+  if (isFinite(lo) && lo < d.axis.start) d.axis.start = Math.floor(lo);
+  if (isFinite(hi) && hi > d.axis.end) d.axis.end = Math.ceil(hi);
+}
+
+function blankTimeline() {
+  return normalize({
+    title: 'Untitled timeline', subtitle: '', author: '', accent: '#2b5f9e',
+    axis: { label: 'Reading order', start: 1, end: 9, snap: 0.5 },
+    lanes: [{ id: 'books', label: 'Books', color: '#2b5f9e' }, { id: 'events', label: 'Key events', color: '#d9772b' }],
+    eras: [], items: []
+  });
+}
+
+/* ---------------- AI prompt ---------------- */
+function aiPrompt() {
+  return `I'm building a timeline of the book series "[SERIES NAME]" in an app called Chronicle. Please reply with ONE JSON object that follows the schema below.
+
+OUTPUT RULES
+- Reply with plain JSON only: no markdown code fences, no commentary before or after it.
+- Use the exact keys shown. Positions are numbers on a "reading order" axis: book N occupies start N → end N+1 (so Book 1 is start 1, end 2), and the axis runs from 1 to the last book's end.
+- Lanes: always "Books", "Characters" and "Key events" (add more only if really useful). Every item's "lane" must match a lane id.
+- kind "span" = something with a duration (books, character arcs, flashbacks) and needs "end"; kind "event" = a single moment (no "end"), placed fractionally inside the book where it happens (e.g. 2.8 = near the end of Book 2).
+- eras are story arcs drawn as bands behind all lanes (start/end in the same units).
+- Book "subtitle" = publication year (or "TBA"/"Upcoming"). Add "novella" to a novella's "tags".
+- Set "spoiler": true on anything that reveals a plot twist, a death, a betrayal or an ending (the app blurs those until the reader clicks). Descriptions are 1–2 sentences and spoiler-free unless the item is flagged.
+- Set "tentative": true on unreleased/announced books, rumoured arcs, and anything you are unsure of. Never invent facts; if unsure, flag it tentative.
+- ids: unique, short, lowercase-with-dashes. Colors are "#rrggbb" hex strings (or null to use the lane color).
+
+SCHEMA
+{
+  "format": "chronicle-timeline", "version": 1,
+  "title": "", "subtitle": "", "author": "", "accent": "#hex",
+  "axis": { "label": "Reading order", "start": 1, "end": 9, "snap": 0.5, "ticks": [ { "at": 1, "label": "Book 1" } ] },
+  "lanes": [ { "id": "books", "label": "Books", "color": "#hex" } ],
+  "eras": [ { "id": "", "label": "", "start": 1, "end": 4, "color": "#hex", "tentative": false } ],
+  "items": [ { "id": "", "lane": "books", "kind": "span|event", "start": 1, "end": 2,
+               "title": "", "subtitle": "", "description": "", "color": null,
+               "spoiler": false, "tentative": false, "tags": [] } ]
+}
+("ticks" is optional; leave it out for automatic 1, 2, 3… ticks.)
+
+SHORT EXAMPLE
+{"format":"chronicle-timeline","version":1,"title":"Example Saga","subtitle":"","author":"A. Writer","accent":"#2b5f9e","axis":{"label":"Reading order","start":1,"end":4,"snap":0.5},"lanes":[{"id":"books","label":"Books","color":"#2b5f9e"},{"id":"events","label":"Key events","color":"#d9772b"}],"eras":[{"id":"arc-1","label":"First arc","start":1,"end":3,"color":"#2f9e5f","tentative":false}],"items":[{"id":"b1","lane":"books","kind":"span","start":1,"end":2,"title":"Book One","subtitle":"2015","description":"The hero leaves home.","color":null,"spoiler":false,"tentative":false,"tags":[]},{"id":"b3","lane":"books","kind":"span","start":3,"end":4,"title":"Book Three","subtitle":"TBA","description":"Announced but unreleased.","color":null,"spoiler":false,"tentative":true,"tags":[]},{"id":"e1","lane":"events","kind":"event","start":1.9,"title":"The mentor falls","subtitle":"","description":"The mentor dies protecting the hero.","color":null,"spoiler":true,"tentative":false,"tags":[]}]}
+
+Now produce the timeline for "[SERIES NAME]": all main books and novellas in reading order, the main story arcs as eras, 3–6 key point-of-view characters or arcs in the Characters lane, and 6–12 key events.`;
+}
+/* ---------------- App state & storage ---------------- */
+const KEY = 'chronicle.v1', HINT_KEY = 'chronicle.hint';
+const db = { lastId: null, list: [] };      // list: [{id, updatedAt, data}]
+const S = { mode: 'view', spoilers: false, sel: null };
+let cur = null;                              // {id, data, example}
+let view = null;
+const stacksMap = new Map();                 // id → {undo, redo, key, t}
+const zooms = new Map();
+let saveTimer = 0, warnedSave = false;
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return;
+    const j = JSON.parse(raw);
+    db.lastId = j.lastId || null;
+    (Array.isArray(j.list) ? j.list : []).forEach(e => {
+      try { db.list.push({ id: String(e.id), updatedAt: e.updatedAt || 0, data: normalize(e.data) }); } catch (_) { /* skip corrupt entry */ }
+    });
+  } catch (_) { /* storage unavailable or corrupt: start fresh */ }
+}
+function flushSave() {
+  clearTimeout(saveTimer); saveTimer = 0;
+  try { localStorage.setItem(KEY, JSON.stringify({ lastId: db.lastId, list: db.list })); }
+  catch (_) { if (!warnedSave) { warnedSave = true; toast('Autosave is unavailable (storage blocked or full). Use Share → Download JSON to keep your work.', { error: true }); } }
+}
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
+addEventListener('pagehide', () => { if (saveTimer) flushSave(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) flushSave(); });
+
+const entryOf = id => db.list.find(e => e.id === id);
+const stacks = id => { let s = stacksMap.get(id); if (!s) stacksMap.set(id, s = { undo: [], redo: [], key: null, t: 0 }); return s; };
+
+/* ---------------- Tiny DOM helpers + toasts ---------------- */
+function h(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function toast(msg, o) {
+  o = o || {};
+  const box = $('#toasts');
+  while (box.children.length >= 3) box.firstChild.remove();
+  const t = h('div', 'toast' + (o.error ? ' err' : ''));
+  t.setAttribute('role', o.error ? 'alert' : 'status');
+  t.appendChild(h('span', 'msg', msg));
+  if (o.action) { const b = h('button', 'act', o.action); b.onclick = () => { t.remove(); o.fn(); }; t.appendChild(b); }
+  const x = h('button', 'x', '×'); x.setAttribute('aria-label', 'Dismiss'); x.onclick = () => t.remove(); t.appendChild(x);
+  box.appendChild(t);
+  setTimeout(() => t.remove(), o.ms || (o.error ? 12000 : 5500));
+}
+
+/* ---------------- Opening timelines ---------------- */
+function applyAccent() {
+  document.documentElement.style.setProperty('--accent', cur.data.accent);
+  document.title = (cur.data.title || 'Untitled') + ' — Chronicle';
+  $('#pickTitle').textContent = cur.data.title || 'Untitled timeline';
+  $('#pickBtn').classList.toggle('is-example', cur.example);
+}
+function openTimeline(id, opts) {
+  opts = opts || {};
+  const ex = EXAMPLES.find(e => e.id === id);
+  if (ex) cur = { id, data: normalize(clone(ex.data)), example: true };
+  else {
+    const e = entryOf(id);
+    if (!e) return openTimeline(EXAMPLES[0].id);
+    cur = { id, data: e.data, example: false };
+  }
+  db.lastId = id; scheduleSave();
+  S.sel = null;
+  applyAccent();
+  if (!view) view = TL.mount($('#stage'), cur.data, { spoilers: S.spoilers, onZoom: p => cur && zooms.set(cur.id, p) });
+  else view.setData(cur.data, { reset: true, ppu: zooms.get(id) });
+  view.set({ editing: S.mode === 'edit', popover: S.mode !== 'edit', spoilers: S.spoilers, selected: null });
+  renderInspector(); renderPicker(); updateUndoButtons();
+}
+function ensureEditable() {
+  if (!cur.example) return;
+  const data = clone(cur.data);
+  data.title = 'Copy of ' + (data.title || 'Untitled');
+  const e = { id: uid('t'), updatedAt: Date.now(), data };
+  db.list.push(e);
+  cur = { id: e.id, data: e.data, example: false };
+  db.lastId = e.id;
+  view.setData(cur.data); applyAccent(); renderPicker();
+  toast('Editing a copy — “' + data.title + '” is saved in My timelines. The example stays untouched.');
+}
+
+/* ---------------- Edits, undo, redo ---------------- */
+function edit(fn, o) {
+  o = o || {};
+  ensureEditable();
+  const st = stacks(cur.id), now = Date.now();
+  if (!(o.key && st.key === o.key && now - st.t < 900)) { st.undo.push(JSON.stringify(cur.data)); if (st.undo.length > 50) st.undo.shift(); }
+  st.key = o.key || null; st.t = now; st.redo.length = 0;
+  fn(cur.data);
+  fitAxis(cur.data);
+  afterChange(o);
+}
+function afterChange(o) {
+  const e = entryOf(cur.id); if (e) e.updatedAt = Date.now();
+  scheduleSave();
+  if (S.sel && !selExists(S.sel)) S.sel = null;
+  applyAccent();
+  view.setData(cur.data);
+  view.setSelected(S.sel);
+  if (!o || !o.keepInspector) renderInspector();
+  renderPicker(); updateUndoButtons();
+}
+function replaceData(target, d) { Object.keys(target).forEach(k => delete target[k]); Object.assign(target, d); }
+function undo() {
+  const st = stacks(cur.id);
+  if (!st.undo.length) return toast('Nothing to undo');
+  st.redo.push(JSON.stringify(cur.data)); replaceData(cur.data, JSON.parse(st.undo.pop())); st.key = null; afterChange();
+}
+function redo() {
+  const st = stacks(cur.id);
+  if (!st.redo.length) return toast('Nothing to redo');
+  st.undo.push(JSON.stringify(cur.data)); replaceData(cur.data, JSON.parse(st.redo.pop())); st.key = null; afterChange();
+}
+function updateUndoButtons() {
+  const st = stacks(cur.id);
+  $('#undoBtn').disabled = !st.undo.length; $('#redoBtn').disabled = !st.redo.length;
+}
+
+/* ---------------- Selection ---------------- */
+function selExists(s) {
+  const d = cur.data;
+  if (s.type === 'item') return d.items.some(i => i.id === s.id);
+  if (s.type === 'era') return d.eras.some(i => i.id === s.id);
+  if (s.type === 'lane') return d.lanes.some(i => i.id === s.id);
+  return true;
+}
+function select(s, o) {
+  S.sel = s;
+  view.setSelected(s);
+  renderInspector();
+  if (s && o && o.focus) { const t = $('#inspector [data-f=title],#inspector [data-f=label]'); if (t) { t.focus(); t.select(); } }
+}
+const getItem = id => cur.data.items.find(i => i.id === id);
+
+/* ---------------- Inspector ---------------- */
+function field(label, input, cls) { const w = h('label', 'field' + (cls ? ' ' + cls : '')); w.append(h('span', 'lbl', label), input); return w; }
+function txt(val, f, on, multi, ph) {
+  const i = document.createElement(multi ? 'textarea' : 'input'); if (!multi) i.type = 'text'; else i.rows = 4;
+  i.value = val || ''; i.dataset.f = f; if (ph) i.placeholder = ph;
+  i.addEventListener('input', () => on(i.value)); return i;
+}
+function numIn(val, f, step, on, after) {
+  const i = h('input'); i.type = 'number'; i.step = step; i.value = String(val); i.dataset.f = f;
+  i.addEventListener('input', () => { const n = parseFloat(i.value); if (isFinite(n)) on(n); });
+  i.addEventListener('change', () => { if (after) after(); });
+  return i;
+}
+function toggle(label, val, on) {
+  const w = h('label', 'tgl'); const i = h('input'); i.type = 'checkbox'; i.checked = !!val;
+  i.addEventListener('change', () => on(i.checked)); w.append(i, h('span', 'sw'), h('span', '', label)); return w;
+}
+function swatches(val, withDefault, on) {
+  const row = h('div', 'swatches');
+  const mk = (c) => { const b = h('button', 'swatch' + ((c || null) === (val || null) ? ' on' : '')); b.type = 'button'; b.style.setProperty('--c', c || 'transparent'); if (!c) { b.classList.add('none'); b.title = 'Lane color'; } else b.title = c; b.setAttribute('aria-label', c || 'Lane color'); b.onclick = () => { on(c); }; return b; };
+  if (withDefault) row.appendChild(mk(null));
+  TL.PALETTE.forEach(c => row.appendChild(mk(c)));
+  const ci = h('input', 'swatch custom'); ci.type = 'color'; ci.title = 'Custom color'; ci.value = val || '#888888';
+  ci.addEventListener('input', () => on(ci.value.toLowerCase(), true));
+  row.appendChild(ci); return row;
+}
+function seg(options, val, on) {
+  const w = h('div', 'seg small'); options.forEach(([v, l]) => { const b = h('button', v === val ? 'on' : '', l); b.type = 'button'; b.onclick = () => on(v); w.appendChild(b); }); return w;
+}
+function btn(label, on, cls) { const b = h('button', 'btn ' + (cls || ''), label); b.type = 'button'; b.onclick = on; return b; }
+
+function renderInspector() {
+  const el = $('#inspector'), s = S.sel;
+  el.replaceChildren();
+  const open = !!s && S.mode === 'edit';
+  document.body.classList.toggle('has-sel', open);
+  if (!open) return;
+  const d = cur.data, snap = d.axis.snap;
+  const title = { item: 'Item', era: 'Era', lane: 'Lane', axis: 'Axis', meta: 'Timeline' }[s.type];
+  const hd = h('div', 'insp-head'); hd.appendChild(h('strong', '', title));
+  const x = h('button', 'icon', '×'); x.title = 'Close (Esc)'; x.setAttribute('aria-label', 'Close inspector'); x.onclick = () => select(null); hd.appendChild(x);
+  el.appendChild(hd);
+  const body = h('div', 'insp-body'); el.appendChild(body);
+  const key = p => s.type + ':' + (s.id || '') + ':' + p;
+  const keep = { keepInspector: true };
+  const upd = (p, fn) => v => edit(dd => fn(dd, v), { key: key(p), keepInspector: true });
+
+  if (s.type === 'item') {
+    const it = getItem(s.id); if (!it) return;
+    const f = (p, fn) => upd(p, (dd, v) => fn(dd.items.find(i => i.id === s.id), v));
+    body.append(
+      field('Title', txt(it.title, 'title', f('title', (o, v) => { o.title = v; }))),
+      field('Subtitle', txt(it.subtitle, 'subtitle', f('subtitle', (o, v) => { o.subtitle = v; }))),
+      field('Description', txt(it.description, 'description', f('description', (o, v) => { o.description = v; }), true))
+    );
+    const laneSel = h('select'); d.lanes.forEach(l => { const o = h('option', '', l.label); o.value = l.id; laneSel.appendChild(o); }); laneSel.value = it.lane;
+    laneSel.onchange = () => edit(dd => { dd.items.find(i => i.id === s.id).lane = laneSel.value; });
+    body.appendChild(field('Lane', laneSel));
+    body.appendChild(field('Type', seg([['event', 'Event'], ['span', 'Span']], it.kind, k => {
+      if (k === it.kind) return;
+      edit(dd => { const o = dd.items.find(i => i.id === s.id); o.kind = k; if (k === 'span') o.end = r4(o.start + 1); else delete o.end; });
+    })));
+    const row = h('div', 'row2');
+    const fixSpan = () => { edit(dd => { const o = dd.items.find(i => i.id === s.id); if (o.kind === 'span') { if (o.end < o.start) [o.start, o.end] = [o.end, o.start]; if (o.end === o.start) o.end = r4(o.start + snap); } }); };
+    row.appendChild(field(it.kind === 'span' ? 'Start' : 'Position', numIn(it.start, 'start', snap, f('start', (o, v) => { const len = o.kind === 'span' ? o.end - o.start : 0; o.start = r4(v); if (o.kind === 'span' && o.end < o.start) o.end = r4(o.start + len || o.start + 1); }), () => { fixSpan(); })));
+    if (it.kind === 'span') row.appendChild(field('End', numIn(it.end, 'end', snap, f('end', (o, v) => { o.end = r4(v); }), () => { fixSpan(); })));
+    body.appendChild(row);
+    body.appendChild(field('Color', swatches(it.color, true, (c, live) => edit(dd => { dd.items.find(i => i.id === s.id).color = c; }, live ? { key: key('color'), keepInspector: true } : {})), 'colors'));
+    body.append(
+      toggle('Spoiler (blurred until revealed)', it.spoiler, v => edit(dd => { dd.items.find(i => i.id === s.id).spoiler = v; }, keep)),
+      toggle('Tentative (dashed, faded)', it.tentative, v => edit(dd => { dd.items.find(i => i.id === s.id).tentative = v; }, keep)),
+      field('Tags', txt((it.tags || []).join(', '), 'tags', f('tags', (o, v) => { o.tags = v.split(',').map(t => t.trim()).filter(Boolean); })), false)
+    );
+    const acts = h('div', 'acts'); acts.append(btn('Duplicate', duplicateSel), btn('Delete', deleteSel, 'danger')); body.appendChild(acts);
+  } else if (s.type === 'era') {
+    const er = d.eras.find(e => e.id === s.id); if (!er) return;
+    const f = (p, fn) => upd(p, (dd, v) => fn(dd.eras.find(e => e.id === s.id), v));
+    body.appendChild(field('Label', txt(er.label, 'label', f('label', (o, v) => { o.label = v; }))));
+    const row = h('div', 'row2');
+    const fix = () => edit(dd => { const o = dd.eras.find(e => e.id === s.id); if (o.end < o.start) [o.start, o.end] = [o.end, o.start]; if (o.end === o.start) o.end = r4(o.start + snap); });
+    row.append(field('Start', numIn(er.start, 'start', snap, f('start', (o, v) => { o.start = r4(v); }), fix)), field('End', numIn(er.end, 'end', snap, f('end', (o, v) => { o.end = r4(v); }), fix)));
+    body.appendChild(row);
+    body.appendChild(field('Color', swatches(er.color, true, (c, live) => edit(dd => { dd.eras.find(e => e.id === s.id).color = c; }, live ? { key: key('color'), keepInspector: true } : {}))));
+    body.appendChild(toggle('Tentative', er.tentative, v => edit(dd => { dd.eras.find(e => e.id === s.id).tentative = v; }, keep)));
+    const acts = h('div', 'acts'); acts.append(btn('Duplicate', duplicateSel), btn('Delete', deleteSel, 'danger')); body.appendChild(acts);
+  } else if (s.type === 'lane') {
+    const ln = d.lanes.find(l => l.id === s.id); if (!ln) return;
+    const f = (p, fn) => upd(p, (dd, v) => fn(dd.lanes.find(l => l.id === s.id), v));
+    body.appendChild(field('Label', txt(ln.label, 'label', f('label', (o, v) => { o.label = v; }))));
+    body.appendChild(field('Color', swatches(ln.color, false, (c, live) => edit(dd => { dd.lanes.find(l => l.id === s.id).color = c; }, live ? { key: key('color'), keepInspector: true } : {}))));
+    body.appendChild(h('p', 'note', 'Drag the lane header up or down to reorder lanes.'));
+    const acts = h('div', 'acts'); acts.append(btn('Duplicate', duplicateSel), btn('Delete lane', deleteSel, 'danger')); body.appendChild(acts);
+  } else if (s.type === 'axis') {
+    const ax = d.axis, f = (p, fn) => upd(p, (dd, v) => fn(dd.axis, v));
+    body.appendChild(field('Label', txt(ax.label, 'label', f('label', (o, v) => { o.label = v; }))));
+    const row = h('div', 'row2'); const refresh = () => renderInspector();
+    row.append(field('Start', numIn(ax.start, 'start', 1, f('start', (o, v) => { o.start = r4(v); }), refresh)), field('End', numIn(ax.end, 'end', 1, f('end', (o, v) => { o.end = r4(v); }), refresh)));
+    body.appendChild(row);
+    body.appendChild(field('Snap step', numIn(ax.snap, 'snap', 0.25, f('snap', (o, v) => { if (v > 0) o.snap = r4(v); }), refresh)));
+    const tk = txt((ax.ticks || []).map(t => t.at + ': ' + t.label).join('\n'), 'ticks', upd('ticks', (dd, v) => {
+      const ticks = v.split('\n').map(l => l.match(/^\s*(-?[\d.]+)\s*[:=,\s]\s*(.*)$/)).filter(Boolean).map(m => ({ at: r4(parseFloat(m[1])), label: m[2].trim() || m[1] })).filter(t => isFinite(t.at));
+      if (ticks.length) dd.axis.ticks = ticks; else delete dd.axis.ticks;
+    }), true, '1: Book 1\n2: Book 2');
+    body.appendChild(field('Custom ticks', tk));
+    body.appendChild(h('p', 'note', 'One per line as “position: label”. Leave empty for automatic 1, 2, 3… ticks. The axis grows automatically when items go past its end.'));
+  } else if (s.type === 'meta') {
+    const f = (p, fn) => upd(p, (dd, v) => fn(dd, v));
+    body.append(
+      field('Title', txt(d.title, 'title', f('title', (o, v) => { o.title = v; }))),
+      field('Subtitle', txt(d.subtitle, 'subtitle', f('subtitle', (o, v) => { o.subtitle = v; }))),
+      field('Author', txt(d.author, 'author', f('author', (o, v) => { o.author = v; }))),
+      field('Accent color', swatches(d.accent, false, (c, live) => edit(dd => { dd.accent = c; }, live ? { key: key('accent'), keepInspector: true } : {})))
+    );
+  }
+}
+
+/* ---------------- Create / duplicate / delete ---------------- */
+function laneAtY(cy) {
+  const lanes = $$('.tl-lane', view.root());
+  for (let i = 0; i < lanes.length; i++) { if (cy < lanes[i].getBoundingClientRect().bottom || i === lanes.length - 1) return { id: lanes[i].dataset.lane, idx: i, el: lanes[i] }; }
+  return null;
+}
+function valueAtX(cx, bypass) {
+  const root = view.root(), geo = root.__geo, d = cur.data;
+  const snap = bypass ? 0.01 : d.axis.snap;
+  const v = geo.val(cx - root.getBoundingClientRect().left);
+  return Math.max(d.axis.start, r4(Math.round(v / snap) * snap));
+}
+function createAt(type, cx, cy, laneId) {
+  const d = cur.data, v = valueAtX(cx);
+  if (type === 'lane') {
+    const l = laneAtY(cy); let idx = d.lanes.length;
+    if (l) { const r = l.el.getBoundingClientRect(); idx = cy < r.top + r.height / 2 ? l.idx : l.idx + 1; }
+    const ids = new Set(d.lanes.map(x => x.id)); const lane = { id: uniq('lane', ids), label: 'New lane', color: LANE_COLORS[d.lanes.length % LANE_COLORS.length] };
+    edit(dd => { dd.lanes.splice(idx, 0, lane); });
+    select({ type: 'lane', id: lane.id }, { focus: true }); return;
+  }
+  if (type === 'era') {
+    const era = { id: uid('e'), label: 'New era', start: v, end: r4(v + 2), color: TL.PALETTE[(d.eras.length + 1) % TL.PALETTE.length], tentative: false };
+    edit(dd => { dd.eras.push(era); });
+    select({ type: 'era', id: era.id }, { focus: true }); return;
+  }
+  const lane = laneId || (laneAtY(cy) || {}).id || d.lanes[0].id;
+  const it = { id: uid('i'), lane, kind: type, start: v, title: type === 'span' ? 'New span' : 'New event', subtitle: '', description: '', color: null, spoiler: false, tentative: false, tags: [] };
+  if (type === 'span') { it.end = r4(v + 1); }
+  edit(dd => { dd.items.push(it); });
+  select({ type: 'item', id: it.id }, { focus: true });
+}
+function createAtCenter(type) {
+  const r = view.scroller.getBoundingClientRect(), cx = r.left + (r.width + TL.LABEL_W) / 2, cy = r.top + Math.min(r.height / 2, 200);
+  if (type === 'lane') return createAt('lane', cx, 1e9);
+  createAt(type, cx, cy);
+}
+function duplicateSel() {
+  const s = S.sel; if (!s) return; const d = cur.data, snap = d.axis.snap;
+  if (s.type === 'item') {
+    const src = getItem(s.id); if (!src) return; const c = clone(src); c.id = uid('i'); c.start = r4(c.start + snap); if (c.kind === 'span') c.end = r4(c.end + snap);
+    edit(dd => { dd.items.push(c); }); select({ type: 'item', id: c.id });
+  } else if (s.type === 'era') {
+    const src = d.eras.find(e => e.id === s.id); if (!src) return; const c = clone(src); c.id = uid('e'); c.start = r4(c.start + snap); c.end = r4(c.end + snap);
+    edit(dd => { dd.eras.push(c); }); select({ type: 'era', id: c.id });
+  } else if (s.type === 'lane') {
+    const src = d.lanes.find(l => l.id === s.id); if (!src) return; const ids = new Set(d.lanes.map(l => l.id)); const nl = { id: uniq(src.id, ids), label: src.label + ' copy', color: src.color };
+    edit(dd => { dd.lanes.splice(dd.lanes.findIndex(l => l.id === s.id) + 1, 0, nl); d.items.filter(i => i.lane === s.id).forEach(i => { const c = clone(i); c.id = uid('i'); c.lane = nl.id; dd.items.push(c); }); });
+    select({ type: 'lane', id: nl.id });
+  }
+}
+function deleteSel() {
+  const s = S.sel; if (!s) return; const d = cur.data;
+  if (s.type === 'item') edit(dd => { dd.items = dd.items.filter(i => i.id !== s.id); });
+  else if (s.type === 'era') edit(dd => { dd.eras = dd.eras.filter(e => e.id !== s.id); });
+  else if (s.type === 'lane') {
+    if (d.lanes.length < 2) return toast('A timeline needs at least one lane.');
+    const n = d.items.filter(i => i.lane === s.id).length;
+    edit(dd => { dd.lanes = dd.lanes.filter(l => l.id !== s.id); dd.items = dd.items.filter(i => i.lane !== s.id); });
+    S.sel = null; renderInspector();
+    toast('Lane deleted' + (n ? ' along with ' + n + ' item' + (n > 1 ? 's' : '') : ''), { action: 'Undo', fn: undo });
+    return;
+  } else return;
+  S.sel = null; renderInspector();
+  toast('Deleted', { action: 'Undo', fn: undo, ms: 4500 });
+}
+
+/* ---------------- Pointer editing: move, resize, reorder, palette drops ---------------- */
+let justDragged = false;
+function flagDragged() { justDragged = true; setTimeout(() => { justDragged = false; }, 0); }
+function readout(text, ev) {
+  let ro = $('.tl-readout'); if (!ro) { ro = h('div', 'tl-readout'); document.body.appendChild(ro); }
+  ro.textContent = text; ro.style.left = (ev.clientX + 14) + 'px'; ro.style.top = (ev.clientY - 34) + 'px';
+}
+function clearHints() {
+  $$('.tl-readout,.ghost').forEach(n => n.remove());
+  $$('.drop-target,.drop-before,.drop-after').forEach(n => n.classList.remove('drop-target', 'drop-before', 'drop-after'));
+  document.body.classList.remove('dragging');
+}
+
+const stage = $('#stage');
+stage.addEventListener('pointerdown', ev => {
+  if (S.mode !== 'edit' || (ev.pointerType === 'mouse' && ev.button !== 0) || ev.target.closest('.tl-zoomctl')) return;
+  const node = ev.target.closest('[data-kind]'); if (!node) return;
+  const kind = node.dataset.kind, id = node.dataset.id;
+  ev.__tlHandled = true;
+  if (kind === 'item' || kind === 'era') { select({ type: kind, id }); startDrag(ev, node, kind, id, (ev.target.closest('[data-handle]') || {}).dataset ? ev.target.closest('[data-handle]').dataset.handle : null); }
+  else if (kind === 'lane') { select({ type: 'lane', id }); startLaneDrag(ev, node.closest('.tl-lane'), id); }
+  else select({ type: kind });
+}, true);
+
+function startDrag(e, node, kind, id, handle) {
+  const d = cur.data, sc = view.scroller, root = view.root(), geo = root.__geo, ppu = geo.ppu;
+  const obj = kind === 'item' ? d.items.find(i => i.id === id) : d.eras.find(i => i.id === id);
+  if (!obj) return;
+  const isSpan = kind === 'era' || obj.kind === 'span';
+  if (!isSpan) handle = null;
+  const g = { x0: e.clientX, y0: e.clientY, sl0: sc.scrollLeft, moved: false, start: obj.start, end: obj.end, len: isSpan ? obj.end - obj.start : 0, lane: obj.lane, last: e, auto: 0 };
+  const laneEl = node.closest('.tl-lane');
+  const bandEl = kind === 'era' ? root.querySelector('.tl-bands').children[d.eras.findIndex(x => x.id === id)] : null;
+  const targets = [node, bandEl].filter(Boolean), shrink = kind === 'item' ? 4 : 2;
+  function preview(ev) {
+    const dx = ev.clientX - g.x0 + (sc.scrollLeft - g.sl0), dy = ev.clientY - g.y0;
+    if (!g.moved) { if (Math.hypot(dx, dy) < 4) return; g.moved = true; node.classList.add('tl-dragging'); document.body.classList.add('dragging'); if (laneEl) laneEl.style.zIndex = 30; }
+    const snap = ev.altKey ? 0.01 : d.axis.snap, sn = v => r4(Math.round(v / snap) * snap), minLen = Math.max(snap, 0.05);
+    if (!handle) {
+      let ns = sn(g.start + dx / ppu); ns = Math.max(ns, d.axis.start); g.ns = ns;
+      const delta = ns - g.start;
+      targets.forEach(t => { t.style.transform = 'translate(' + (delta * ppu) + 'px,' + (kind === 'item' ? dy : 0) + 'px)'; });
+      if (kind === 'item') {
+        const l = laneAtY(ev.clientY); $$('.drop-target').forEach(n => n.classList.remove('drop-target')); if (l) { l.el.classList.add('drop-target'); g.lane = l.id; }
+      }
+      readout(isSpan ? TL.fmt(ns) + ' → ' + TL.fmt(ns + g.len) : TL.fmt(ns), ev);
+    } else if (handle === 'l') {
+      let ns = Math.min(sn(g.start + dx / ppu), g.end - minLen); ns = Math.max(ns, d.axis.start); g.ns = ns;
+      targets.forEach(t => { t.style.left = geo.x(ns) + 'px'; t.style.width = Math.max((g.end - ns) * ppu - (t === node ? shrink : 0), 18) + 'px'; });
+      readout(TL.fmt(ns) + ' → ' + TL.fmt(g.end), ev);
+    } else {
+      const ne = Math.max(sn(g.end + dx / ppu), g.start + minLen); g.ne = ne;
+      targets.forEach(t => { t.style.width = Math.max((ne - g.start) * ppu - (t === node ? shrink : 0), 18) + 'px'; });
+      readout(TL.fmt(g.start) + ' → ' + TL.fmt(ne), ev);
+    }
+    // edge auto-scroll
+    const r = sc.getBoundingClientRect();
+    g.edge = ev.clientX > r.right - 50 ? 1 : (ev.clientX < r.left + TL.LABEL_W + 40 ? -1 : 0);
+    if (g.edge && !g.auto) g.auto = setInterval(() => { sc.scrollLeft += g.edge * 14; preview(g.last); }, 16);
+    if (!g.edge && g.auto) { clearInterval(g.auto); g.auto = 0; }
+  }
+  const mv = ev => { g.last = ev; preview(ev); };
+  const up = ev => {
+    removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    if (g.auto) clearInterval(g.auto);
+    clearHints();
+    if (laneEl) laneEl.style.zIndex = '';
+    if (!g.moved || ev.type === 'pointercancel') { targets.forEach(t => { t.style.transform = ''; }); node.classList.remove('tl-dragging'); return; }
+    flagDragged();
+    edit(dd => {
+      const o = kind === 'item' ? dd.items.find(i => i.id === id) : dd.eras.find(i => i.id === id);
+      if (!handle) {
+        const delta = r4(g.ns - g.start); o.start = r4(o.start + delta); if (isSpan) o.end = r4(o.end + delta); if (kind === 'item' && g.lane) o.lane = g.lane;
+      } else if (handle === 'l') o.start = r4(g.ns);
+      else o.end = r4(g.ne);
+    });
+  };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+
+function startLaneDrag(e, laneEl, id) {
+  const d = cur.data, g = { y0: e.clientY, moved: false, idx: null };
+  const from = d.lanes.findIndex(l => l.id === id);
+  const mv = ev => {
+    const dy = ev.clientY - g.y0;
+    if (!g.moved) { if (Math.abs(dy) < 4) return; g.moved = true; laneEl.classList.add('tl-dragging'); laneEl.style.zIndex = 30; document.body.classList.add('dragging'); }
+    laneEl.style.transform = 'translateY(' + dy + 'px)';
+    const lanes = $$('.tl-lane', view.root()).filter(l => l !== laneEl);
+    $$('.drop-before,.drop-after').forEach(n => n.classList.remove('drop-before', 'drop-after'));
+    let idx = lanes.length;
+    for (let i = 0; i < lanes.length; i++) { const r = lanes[i].getBoundingClientRect(); if (ev.clientY < r.top + r.height / 2) { idx = i; break; } }
+    g.idx = idx;
+    if (idx < lanes.length) lanes[idx].classList.add('drop-before'); else if (lanes.length) lanes[lanes.length - 1].classList.add('drop-after');
+  };
+  const up = ev => {
+    removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    clearHints(); laneEl.style.transform = ''; laneEl.style.zIndex = ''; laneEl.classList.remove('tl-dragging');
+    if (!g.moved || g.idx == null || ev.type === 'pointercancel' || g.idx === from) return;
+    flagDragged();
+    edit(dd => { const [l] = dd.lanes.splice(from, 1); dd.lanes.splice(g.idx, 0, l); });
+  };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+
+/* palette chips: drag onto the canvas, or click to add at the centre */
+$$('#palette .chip').forEach(chip => {
+  chip.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    const type = chip.dataset.type, g = { x: e.clientX, y: e.clientY, ghost: null };
+    const over = ev => { const r = stage.getBoundingClientRect(); return ev.clientX > r.left + TL.LABEL_W && ev.clientX < r.right && ev.clientY > r.top && ev.clientY < r.bottom; };
+    const mv = ev => {
+      if (!g.ghost) {
+        if (Math.hypot(ev.clientX - g.x, ev.clientY - g.y) < 5) return;
+        g.ghost = h('div', 'ghost ' + type, chip.textContent.trim()); document.body.appendChild(g.ghost); document.body.classList.add('dragging');
+      }
+      g.ghost.style.left = ev.clientX + 'px'; g.ghost.style.top = ev.clientY + 'px';
+      $$('.drop-target,.drop-before,.drop-after').forEach(n => n.classList.remove('drop-target', 'drop-before', 'drop-after'));
+      if (over(ev)) {
+        const l = laneAtY(ev.clientY);
+        if (type === 'lane' && l) { const r = l.el.getBoundingClientRect(); l.el.classList.add(ev.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after'); }
+        else if (type !== 'era' && l) l.el.classList.add('drop-target');
+        if (type !== 'lane') readout(TL.fmt(valueAtX(ev.clientX, ev.altKey)), ev);
+      } else $$('.tl-readout').forEach(n => n.remove());
+    };
+    const up = ev => {
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+      const dragged = !!g.ghost; clearHints();
+      if (ev.type === 'pointercancel') return;
+      if (!dragged) createAtCenter(type);
+      else if (over(ev)) createAt(type, ev.clientX, ev.clientY);
+    };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  });
+  chip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); createAtCenter(chip.dataset.type); } });
+});
+
+/* click on empty canvas: deselect; double-click / double-tap an empty lane: new event */
+let lastTap = null;
+stage.addEventListener('click', e => {
+  if (S.mode !== 'edit' || view.justPanned() || justDragged || e.target.closest('.tl-zoomctl') || e.target.closest('[data-kind]')) return;
+  const laneEl = e.target.closest('.tl-lane'), now = Date.now();
+  if (laneEl && lastTap && now - lastTap.t < 450 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 28 && lastTap.lane === laneEl.dataset.lane) {
+    lastTap = null; createAt('event', e.clientX, e.clientY, laneEl.dataset.lane); return;
+  }
+  lastTap = laneEl ? { t: now, x: e.clientX, y: e.clientY, lane: laneEl.dataset.lane } : null;
+  if (S.sel) select(null);
+});
+
+/* ---------------- Keyboard ---------------- */
+document.addEventListener('keydown', e => {
+  const t = e.target, typing = t.closest && t.closest('input:not([type=checkbox]):not([type=color]),textarea,select,[contenteditable=""],[contenteditable=true]');
+  const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (e.key === 'Escape') {
+    if (typing) { t.blur(); return; }
+    closeMenus(); if (S.mode === 'edit' && S.sel) select(null); return;
+  }
+  if (typing || S.mode !== 'edit') return;
+  if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && k === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && k === 'd') { e.preventDefault(); duplicateSel(); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel) { e.preventDefault(); deleteSel(); } return; }
+  if (e.key.startsWith('Arrow') && S.sel && (S.sel.type === 'item' || S.sel.type === 'era')) {
+    e.preventDefault();
+    const s = S.sel, snap = e.altKey ? 0.01 : cur.data.axis.snap;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const dx = (e.key === 'ArrowRight' ? 1 : -1) * snap;
+      edit(dd => {
+        const o = s.type === 'item' ? dd.items.find(i => i.id === s.id) : dd.eras.find(i => i.id === s.id);
+        const lo = dd.axis.start; let step = dx; if (o.start + step < lo) step = lo - o.start;
+        o.start = r4(o.start + step); if (o.end != null) o.end = r4(o.end + step);
+      }, { key: 'nudge:' + s.id });
+    } else if (s.type === 'item') {
+      const dy = e.key === 'ArrowDown' ? 1 : -1;
+      edit(dd => { const o = dd.items.find(i => i.id === s.id); const i = dd.lanes.findIndex(l => l.id === o.lane); const n = Math.max(0, Math.min(dd.lanes.length - 1, i + dy)); o.lane = dd.lanes[n].id; }, { key: 'lane:' + s.id });
+    }
+  }
+});
+
+/* ---------------- Top bar: picker, mode, spoilers, share ---------------- */
+function closeMenus() { $$('.menu.open').forEach(m => m.classList.remove('open')); $$('[aria-expanded=true]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
+function bindMenu(btnSel, menuSel, onOpen) {
+  const b = $(btnSel), m = $(menuSel);
+  b.addEventListener('click', e => { e.stopPropagation(); const was = m.classList.contains('open'); closeMenus(); if (!was) { if (onOpen) onOpen(); m.classList.add('open'); b.setAttribute('aria-expanded', 'true'); } });
+  m.addEventListener('click', e => e.stopPropagation());
+}
+document.addEventListener('click', closeMenus);
+
+function renderPicker() {
+  const m = $('#pickMenu'); m.replaceChildren();
+  const row = (id, title, kind) => {
+    const r = h('div', 'mrow' + (cur && cur.id === id ? ' on' : '')); r.setAttribute('role', 'menuitem'); r.tabIndex = 0;
+    const name = h('span', 'name', title || 'Untitled'); r.appendChild(name);
+    r.onclick = () => { closeMenus(); openTimeline(id); };
+    r.onkeydown = e => { if (e.key === 'Enter') r.onclick(); };
+    if (kind === 'mine' || kind === 'example') {
+      const acts = h('span', 'racts');
+      const mk = (sym, tip, fn) => { const b = h('button', 'icon', sym); b.title = tip; b.setAttribute('aria-label', tip); b.onclick = e => { e.stopPropagation(); fn(r, name); }; acts.appendChild(b); };
+      if (kind === 'mine') mk('✎', 'Rename', (row, nm) => startRename(id, row, nm));
+      mk('⧉', 'Duplicate', () => { closeMenus(); duplicateTimeline(id); });
+      if (kind === 'mine') mk('🗑', 'Delete', () => { closeMenus(); deleteTimeline(id); });
+      r.appendChild(acts);
+    }
+    return r;
+  };
+  m.appendChild(h('div', 'mhead', 'Examples'));
+  EXAMPLES.forEach(ex => m.appendChild(row(ex.id, ex.data.title, 'example')));
+  m.appendChild(h('div', 'mhead', 'My timelines'));
+  const mine = db.list.slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!mine.length) m.appendChild(h('div', 'mempty', 'Nothing yet. Start with + New, or edit an example to make your own copy.'));
+  mine.forEach(e => m.appendChild(row(e.id, e.data.title, 'mine')));
+  const n = h('div', 'mrow new'); n.setAttribute('role', 'menuitem'); n.tabIndex = 0; n.appendChild(h('span', 'name', '+ New timeline'));
+  n.onclick = () => { closeMenus(); newTimeline(); }; n.onkeydown = e => { if (e.key === 'Enter') n.onclick(); };
+  m.appendChild(n);
+}
+function startRename(id, row, nameEl) {
+  const e = entryOf(id); if (!e) return;
+  const i = h('input', 'rename'); i.value = e.data.title; row.replaceChild(i, nameEl); i.focus(); i.select();
+  i.onclick = ev => ev.stopPropagation();
+  const done = ok => { if (done.d) return; done.d = true; if (ok && i.value.trim()) { e.data.title = i.value.trim(); e.updatedAt = Date.now(); scheduleSave(); if (cur.id === id) { applyAccent(); view.setData(cur.data); } } renderPicker(); };
+  i.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') done(true); if (ev.key === 'Escape') done(false); };
+  i.onblur = () => done(true);
+}
+function newTimeline() {
+  const e = { id: uid('t'), updatedAt: Date.now(), data: blankTimeline() }; db.list.push(e);
+  openTimeline(e.id); setMode('edit');
+}
+function duplicateTimeline(id) {
+  const ex = EXAMPLES.find(x => x.id === id), src = ex ? ex.data : (entryOf(id) || {}).data; if (!src) return;
+  const data = clone(src); data.title = 'Copy of ' + data.title;
+  const e = { id: uid('t'), updatedAt: Date.now(), data }; db.list.push(e); openTimeline(e.id);
+  toast('Duplicated as “' + data.title + '”');
+}
+function deleteTimeline(id) {
+  const idx = db.list.findIndex(e => e.id === id); if (idx < 0) return;
+  const ent = db.list[idx]; db.list.splice(idx, 1);
+  const wasCur = cur.id === id;
+  if (wasCur) openTimeline((db.list[0] || {}).id || EXAMPLES[0].id); else { scheduleSave(); renderPicker(); }
+  scheduleSave();
+  toast('Deleted “' + ent.data.title + '”', { action: 'Undo', ms: 8000, fn: () => { db.list.splice(Math.min(idx, db.list.length), 0, ent); scheduleSave(); if (wasCur) openTimeline(ent.id); else renderPicker(); } });
+}
+
+function setMode(m) {
+  S.mode = m; document.body.dataset.mode = m;
+  $$('#modeSeg button').forEach(b => { const on = b.dataset.mode === m; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  if (m !== 'edit') S.sel = null;
+  view.set({ editing: m === 'edit', popover: m !== 'edit', selected: S.sel });
+  renderInspector();
+  const hint = $('#hint'); let dismissed = false; try { dismissed = localStorage.getItem(HINT_KEY) === '1'; } catch (_) { /* ignore */ }
+  hint.hidden = !(m === 'edit' && !dismissed);
+}
+$$('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+$('#hintClose').addEventListener('click', () => { $('#hint').hidden = true; try { localStorage.setItem(HINT_KEY, '1'); } catch (_) { /* ignore */ } });
+$('#spoilToggle').addEventListener('change', e => { S.spoilers = e.target.checked; view.set({ spoilers: S.spoilers }); });
+$('#undoBtn').addEventListener('click', undo);
+$('#redoBtn').addEventListener('click', redo);
+bindMenu('#pickBtn', '#pickMenu', renderPicker);
+bindMenu('#shareBtn', '#shareMenu');
+
+/* ---------------- Share: JSON, prompt, PNG, HTML, import ---------------- */
+const fileSlug = () => slugify(cur.data.title) || 'timeline';
+function download(name, blobOrUrl) {
+  const a = h('a'); a.download = name; a.href = typeof blobOrUrl === 'string' ? blobOrUrl : URL.createObjectURL(blobOrUrl);
+  document.body.appendChild(a); a.click(); a.remove(); if (typeof blobOrUrl !== 'string') setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const canonJSON = () => JSON.stringify(normalize(cur.data), null, 2);
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (_) {
+    const ta = h('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (__) { /* ignore */ } ta.remove();
+    if (!ok) return toast('Couldn’t access the clipboard. Use Download instead.', { error: true });
+  }
+  toast(okMsg);
+}
+function loadLib() {
+  if (window.htmlToImage) return Promise.resolve();
+  const urls = ['https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js', 'https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js'];
+  return new Promise((res, rej) => {
+    let i = 0;
+    const next = () => {
+      if (i >= urls.length) return rej(new Error('Couldn’t load the PNG library (html-to-image) — check your internet connection and try again.'));
+      const s = document.createElement('script'); s.src = urls[i++];
+      s.onload = () => (window.htmlToImage ? res() : next()); s.onerror = () => { s.remove(); next(); };
+      document.head.appendChild(s);
+    };
+    next();
+  });
+}
+async function exportPNG() {
+  toast('Rendering PNG…', { ms: 2500 });
+  let wrap;
+  try {
+    await loadLib();
+    const d = normalize(cur.data), span = d.axis.end - d.axis.start;
+    const maxPpu = (6800 - TL.LABEL_W - TL.PAD_L - TL.PAD_R) / span;
+    const ppu = Math.max(24, Math.min(Math.max(view.getPpu(), 80), maxPpu));
+    wrap = h('div', 'tl-export tl-scope'); wrap.style.setProperty('--accent', d.accent);
+    const hd = h('div', 'ex-head'); hd.appendChild(h('h1', '', d.title));
+    const sub = [d.subtitle, d.author].filter(Boolean).join(' · '); if (sub) hd.appendChild(h('div', 'ex-sub', sub));
+    wrap.appendChild(hd);
+    const tl = TL.render(d, { ppu, spoilers: S.spoilers, revealed: view.revealed, header: false, footer: false });
+    tl.style.minHeight = '0'; wrap.appendChild(tl);
+    const lg = h('div', 'ex-legend');
+    d.lanes.forEach(l => { const c = h('span', 'lg'); const dot = h('i'); dot.style.background = l.color; c.append(dot, document.createTextNode(l.label)); lg.appendChild(c); });
+    if (d.items.some(i => i.tentative) || d.eras.some(e => e.tentative)) { const c = h('span', 'lg dash'); c.append(h('i', 'dashed'), document.createTextNode('Tentative')); lg.appendChild(c); }
+    if (d.items.some(i => i.spoiler)) lg.appendChild(h('span', 'lg', S.spoilers ? 'Contains spoilers' : 'Spoilers hidden'));
+    lg.appendChild(h('span', 'lg grow', 'Made with Chronicle'));
+    wrap.appendChild(lg);
+    wrap.style.width = (parseFloat(tl.style.width) + 72) + 'px';
+    document.body.appendChild(wrap);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const url = await window.htmlToImage.toPng(wrap, { pixelRatio: 2, backgroundColor: getComputedStyle(wrap).backgroundColor, width: wrap.offsetWidth, height: wrap.offsetHeight });
+    download(fileSlug() + '.png', url);
+    toast('PNG saved');
+  } catch (err) { toast('PNG export failed: ' + (err && err.message ? err.message : err), { error: true }); }
+  finally { if (wrap) wrap.remove(); }
+}
+
+function shellMain() {
+  var data = JSON.parse(document.getElementById('tl-data').textContent);
+  var root = document.documentElement;
+  root.style.setProperty('--accent', data.accent);
+  document.title = data.title;
+  document.getElementById('ttl').textContent = data.title;
+  var view = TL.mount(document.getElementById('stage'), data, { spoilers: false, popover: true });
+  document.getElementById('sp').addEventListener('change', function (e) { view.set({ spoilers: e.target.checked }); });
+  var modes = ['auto', 'light', 'dark'], mi = 0, tb = document.getElementById('th');
+  tb.addEventListener('click', function () {
+    mi = (mi + 1) % 3;
+    if (modes[mi] === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', modes[mi]);
+    tb.textContent = 'Theme: ' + modes[mi];
+  });
+}
+const SHELL_CSS = 'html,body{height:100%;margin:0}body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font-family:var(--font)}' +
+  '#bar{display:flex;align-items:center;gap:16px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);font-size:13px;flex-wrap:wrap}' +
+  '#ttl{font-weight:700;margin-right:auto}#bar label{display:flex;align-items:center;gap:6px;cursor:pointer}' +
+  '#th{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}#th:hover{background:var(--hover)}' +
+  '#stage{position:relative;flex:1;min-height:0}';
+function buildHTML() {
+  const d = normalize(cur.data);
+  const css = document.getElementById('tl-styles').textContent, js = document.getElementById('tl-renderer').textContent;
+  const json = JSON.stringify(d).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const S_ = '<' + 'script', E_ = '<' + '/script>';
+  return '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + esc(d.title) + '</title>\n' +
+    '<style id="tl-styles">' + css + '</style>\n<style>' + SHELL_CSS + '</style></head>\n<body>\n' +
+    '<div id="bar"><span id="ttl"></span><label><input type="checkbox" id="sp"> Show spoilers</label><button id="th" type="button">Theme: auto</button></div>\n<div id="stage"></div>\n' +
+    S_ + ' type="application/json" id="tl-' + 'data">' + json + E_ + '\n' +
+    S_ + ' id="tl-renderer">' + js + E_ + '\n' +
+    S_ + '>(' + shellMain.toString() + ')();' + E_ + '\n</body></html>\n';
+}
+
+function importText(text) {
+  let data;
+  try { data = parseImport(text); }
+  catch (err) { toast(err.message, { error: true }); return false; }
+  const prev = cur.id, e = { id: uid('t'), updatedAt: Date.now(), data };
+  db.list.push(e); openTimeline(e.id);
+  toast('Imported “' + data.title + '” — ' + data.items.length + ' items, ' + data.lanes.length + ' lanes', {
+    action: 'Undo', ms: 8000, fn: () => { const i = db.list.indexOf(e); if (i >= 0) db.list.splice(i, 1); openTimeline(prev); scheduleSave(); }
+  });
+  return true;
+}
+async function importFiles(files) {
+  for (const f of Array.from(files)) {
+    let t; try { t = await f.text(); } catch (_) { toast('Couldn’t read “' + f.name + '”.', { error: true }); continue; }
+    importText(t);
+  }
+}
+$('#shareMenu').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return; closeMenus();
+  const act = b.dataset.act;
+  if (act === 'json') download(fileSlug() + '.json', new Blob([canonJSON()], { type: 'application/json' }));
+  else if (act === 'copy') copyText(canonJSON(), 'JSON copied');
+  else if (act === 'import') $('#fileIn').click();
+  else if (act === 'prompt') copyText(aiPrompt(), 'AI prompt copied — paste it into any chatbot, then paste the reply back here');
+  else if (act === 'png') exportPNG();
+  else if (act === 'html') download(fileSlug() + '.html', new Blob([buildHTML()], { type: 'text/html' }));
+});
+$('#fileIn').addEventListener('change', e => { importFiles(e.target.files); e.target.value = ''; });
+
+/* drop files anywhere; paste JSON anywhere outside a text field */
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+addEventListener('dragenter', e => { if (hasFiles(e)) { dragDepth++; $('#veil').classList.add('on'); } });
+addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+addEventListener('dragleave', e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; $('#veil').classList.remove('on'); } });
+addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $('#veil').classList.remove('on'); importFiles(e.dataTransfer.files); });
+document.addEventListener('paste', e => {
+  const t = e.target; if (t.closest && t.closest('input,textarea,select,[contenteditable=""],[contenteditable=true]')) return;
+  const files = e.clipboardData && e.clipboardData.files;
+  if (files && files.length) { e.preventDefault(); importFiles(files); return; }
+  const text = e.clipboardData ? e.clipboardData.getData('text') : '';
+  if (!text || !/[{[]/.test(text)) return;
+  e.preventDefault(); importText(text);
+});
+
+/* ---------------- Boot ---------------- */
+loadDB();
+const startId = (db.lastId && (entryOf(db.lastId) || EXAMPLES.some(x => x.id === db.lastId))) ? db.lastId : EXAMPLES[0].id;
+document.body.dataset.mode = 'view';
+openTimeline(startId);
+setMode('view');
+
+})();
+</script>
+</body>
+</html>
